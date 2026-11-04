@@ -2,6 +2,7 @@
 eclipse.project.name = appName + '-core'
 
 dependencies {
+  testImplementation 'junit:junit:4.13.2'
   api "com.badlogicgames.gdx:gdx:$gdxVersion"
 
   if(enableGraalNative == 'true') {
