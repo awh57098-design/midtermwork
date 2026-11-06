@@ -20,7 +20,7 @@ public final class BossChecks {
    GameWorld w=stage(level);w.enemies.removeIf(e->!e.boss);w.x=300;w.bossActive=true;w.boss.timer=0;
    int attacks=0;boolean recover=false,eruption=false,volley=false;GameWorld.Phase old=w.boss.phase;
    for(int i=0;i<500;i++){w.y=500;w.vy=0;w.step(1f/60f,0,false,false);if(old!=w.boss.phase&&w.boss.phase==GameWorld.Phase.ATTACK)attacks++;old=w.boss.phase;
-    recover|=w.boss.phase==GameWorld.Phase.RECOVER;volley|=w.shots.size()>=3;eruption|=!w.eruptions.isEmpty();}
+    recover|=w.boss.phase==GameWorld.Phase.RECOVER;volley|=w.shots.size()>=3;eruption|=w.bossHazards.stream().anyMatch(h->h.type==GameWorld.BossHazardType.FIRE_PILLAR);}
    assertTrue(recover);assertTrue(attacks>=2);if(level>=2)assertTrue(volley);if(level==3)assertTrue(eruption);
   }
  }

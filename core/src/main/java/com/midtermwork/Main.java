@@ -129,7 +129,8 @@ public class Main extends ApplicationAdapter {
         (world.stage==1?environment:world.stage==2?caveEnvironment:volcanoEnvironment).draw(batch,world,camera.position.x-VIEW_W/2);batch.end();
         Gdx.gl.glEnable(com.badlogic.gdx.graphics.GL20.GL_BLEND);
         shapes.setProjectionMatrix(camera.combined);shapes.begin(ShapeRenderer.ShapeType.Filled);
-        for(GameWorld.Shot shot:world.shots){shapes.setColor(.65f,.24f,.86f,1);shapes.circle(shot.x,shot.y,11,16);shapes.setColor(.90f,.59f,1,1);shapes.circle(shot.x-3,shot.y+3,4,12);}
+        for(GameWorld.Shot shot:world.shots)BossVisual.shot(shapes,shot,time);
+        BossVisual.draw(shapes,world,time);
         for(GameWorld.RockFall rock:world.rockFalls)if(rock.warning>0) {
             float surface=112;for(GameWorld.Block b:world.blocks)if(rock.x>=b.x&&rock.x<=b.x+b.w)surface=Math.max(surface,b.y+b.h);
             shapes.setColor(1,.34f,.16f,.65f);
@@ -150,7 +151,7 @@ public class Main extends ApplicationAdapter {
         }
         for(GameWorld.Enemy e:world.enemies) if(e.alive()&&(!e.boss||world.bossActive)) {
             shapes.setColor(.15f,.25f,.22f,1); shapes.ellipse(e.x-7,e.y-3,62,10,16);
-            if(e.phase==GameWorld.Phase.WINDUP) {
+            if(e.phase==GameWorld.Phase.WINDUP&&!e.boss) {
                 shapes.setColor(1,.76f,.16f,1);shapes.rect(e.dir>0?e.x+48:e.x-140,e.y+3,140,5);
             }
             shapes.setColor(e.phase==GameWorld.Phase.WINDUP?Color.GOLD:e.phase==GameWorld.Phase.ATTACK?Color.SCARLET:e.phase==GameWorld.Phase.RECOVER?Color.SKY:Color.DARK_GRAY);
@@ -173,7 +174,7 @@ public class Main extends ApplicationAdapter {
             String action;float clock;boolean progress=false,loop=false;float sx=1,sy=1,rotation=0;
             if(e.hurtTime>0){action="Hurt";clock=1-e.hurtTime/.24f;progress=true;rotation=-e.dir*7;}
             else if(e.phase==GameWorld.Phase.WINDUP){action="Charge";clock=e.phaseTime;loop=true;sy=.9f;sx=1.08f;}
-            else if(e.phase==GameWorld.Phase.ATTACK){action=e.spitter?"Shoot":"Attack";clock=e.phaseTime/(e.boss&&e.spitter?.7f:e.spitter?.12f:.46f);progress=true;sx=e.spitter?1:1.1f;sy=e.spitter?1:.92f;}
+            else if(e.phase==GameWorld.Phase.ATTACK){action=e.boss&&world.stage==2&&e.pattern==2?"Attack":e.spitter?"Shoot":"Attack";clock=e.phaseTime/(e.boss&&e.spitter?.7f:e.spitter?.12f:.46f);progress=true;sx=e.spitter?1:1.1f;sy=e.spitter?1:.92f;}
             else if(e.phase==GameWorld.Phase.RECOVER){action="Idle";clock=e.phaseTime;loop=true;sy=.94f;}
             else {action=Math.abs(e.vx)>4?"Walk":"Idle";clock=action.equals("Walk")?e.walkClock:world.elapsed;loop=true;}
             (e.boss?bossAnimations[world.stage-1]:e.spitter?snakeAnimation:ratAnimation).draw(batch,action,clock,progress,loop,e.dir,e.x+e.width()/2,e.y,sx,sy,rotation);
@@ -181,6 +182,7 @@ public class Main extends ApplicationAdapter {
             text("약점 "+e.weaknesses(),e.x+1,e.y+e.height()+60,.65f,Color.WHITE);
             if(e.matchupTime>0)text(e.combatNote,e.x-3,e.y+e.height()+135,.9f,e.lastEffectiveness>=2?Color.GOLD:e.lastEffectiveness<1?Color.LIGHT_GRAY:Color.WHITE);
             String state=e.paralysisTime>0?"마비":e.trapTime>0?"구속":e.flinchTime>0?"풀죽음":e.smoked>0?"연막":e.slowTime>0?"둔화":e.burnTime>0?"화상":e.phase==GameWorld.Phase.WINDUP?"!":e.phase==GameWorld.Phase.ATTACK?(e.spitter?"독 발사":"돌진"):e.phase==GameWorld.Phase.RECOVER?"빈틈":"";
+            if(e.boss&&(e.phase==GameWorld.Phase.WINDUP||e.phase==GameWorld.Phase.ATTACK))state=world.bossMoveName();
             if(!state.isEmpty())text(state,e.x-3,e.y+e.height()+110,.9f,e.phase==GameWorld.Phase.RECOVER?Color.SKY:Color.GOLD);
         }
         float alpha=(world.invulnerable>0||world.dashInvulnerable())&&(int)(time*16)%2==0?.48f:1;
@@ -303,7 +305,7 @@ public class Main extends ApplicationAdapter {
         }
         if(itemSlot==0)text("적을 처치하면 도구가 나옵니다!",28,663,.95f,Color.LIGHT_GRAY);
         if(world.itemNoticeTime>0&&!world.choosingSkill())text(world.itemNotice,35,530,1.1f,Color.GOLD);
-        text(world.species(),520,693,1.65f,Color.WHITE);
+        text(world.species()+(world.candyLevelBonus()>0?" (사탕+"+world.candyLevelBonus()+")":""),520,693,1.65f,Color.WHITE);
         text("하트  "+(world.hp/2f)+" / "+(world.maxHp/2),520,661,1.05f,Color.WHITE);
         text("Lv."+world.level+"   경험치 "+world.xp+" / "+world.xpRequired(),760,651,1.05f,Color.WHITE);
         PokemonStats.Values stats=world.stats();
@@ -312,7 +314,7 @@ public class Main extends ApplicationAdapter {
         text("기본 피해 "+world.attackDamage(),1100,651,.85f,Color.GOLD);
         if(world.statTime>0){text("공격 "+world.attackStage+" / 특공 "+world.specialAttackStage+" / 속도 "+world.speedStage,520,615,.65f,Color.SKY);}
         text(world.stageLabel(),870,701,1.25f,Color.WHITE);
-        text(world.mapTitle()+"  |  구역 "+world.areaNumber()+" / 15",870,674,.9f,new Color(.7f,.85f,.77f,1));
+        text(world.mapTitle()+"  |  구역 "+world.areaNumber()+" / 15 / 적 Lv."+world.enemyLevel(),870,674,.9f,new Color(.7f,.85f,.77f,1));
         text("방향키 이동   Space 점프   ↓+Space 발판 내려가기   J/Z 공격   X C A S 기술   Esc 일시정지   T 기술머신   R 처음부터",30,79,.95f,Color.WHITE);
         for(int i=0;i<4;i++){GameWorld.Skill skill=world.skillAt(i);float sx=30+i*306;
             Color tint=world.skillUnlocked(i)?Color.WHITE:Color.GRAY;

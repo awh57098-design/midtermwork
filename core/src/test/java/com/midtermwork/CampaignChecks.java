@@ -27,7 +27,7 @@ public final class CampaignChecks {
   }
  }
  @Test public void roomProgressAndRetryPreserveTheCorrectGrowthSnapshot(){
-  GameWorld w=new GameWorld();w.addExperience(150);int level=w.level,xp=w.xp;w.hp=3;complete(w);assertTrue(w.advanceStage());
+  GameWorld w=new GameWorld();w.addExperience(150);while(w.choosingSkill())w.skipLearning();int level=w.level,xp=w.xp;w.hp=3;complete(w);assertTrue(w.advanceStage());
   assertEquals(1,w.stage);assertEquals(2,w.mapIndex);assertEquals(level,w.level);assertEquals(xp,w.xp);assertEquals(w.maxHp,w.hp);
   w.addExperience(10);w.hp=0;assertTrue(w.retryStage());assertEquals(2,w.mapIndex);assertEquals(level,w.level);assertEquals(xp,w.xp);assertEquals(100,w.x,0);
   w.restart();assertEquals(1,w.areaNumber());assertEquals(1,w.level);

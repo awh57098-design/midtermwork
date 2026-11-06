@@ -36,7 +36,7 @@ public final class GameWorldChecks {
         w.restart();assertEquals(6,w.hp);assertEquals(1,w.level);
     }
     @Test public void evolutionAloneAddsHeartContainers() {
-        GameWorld w=quiet();w.addExperience(150);assertEquals(3,w.level);assertEquals(50,w.xp);assertEquals(6,w.maxHp);
+        GameWorld w=quiet();w.addExperience(150);assertEquals(4,w.level);assertEquals(0,w.xp);assertEquals(6,w.maxHp);
         while(w.level<16)w.addExperience(w.xpRequired()-w.xp);
         assertEquals(1,w.evolution);assertEquals(8,w.maxHp);assertEquals(8,w.hp);
         while(w.level<36)w.addExperience(w.xpRequired()-w.xp);

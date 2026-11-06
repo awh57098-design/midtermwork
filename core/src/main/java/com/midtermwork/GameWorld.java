@@ -12,7 +12,7 @@ public final class GameWorld {
     public static final int BOSS_HP_MULTIPLIER=10,BOSS_DEFENSE_MULTIPLIER=3;
     private static int enemyMaxHp(Enemy e){return e.stats().hp*(e.boss?BOSS_HP_MULTIPLIER:1);}
     public void syncEnemyLevels(){
-        for(Enemy e:enemies)if(e.alive()&&e.level!=level){float fraction=e.hp/(float)e.maxHp;e.level=level;e.maxHp=enemyMaxHp(e);e.hp=Math.min(e.maxHp,Math.max(1,(int)Math.ceil(e.maxHp*fraction)));}
+        for(Enemy e:enemies)if(e.alive()&&e.level!=enemyLevel()){float fraction=e.hp/(float)e.maxHp;e.level=enemyLevel();e.maxHp=enemyMaxHp(e);e.hp=Math.min(e.maxHp,Math.max(1,(int)Math.ceil(e.maxHp*fraction)));}
     }
     private void periodicHit(Enemy e){
         if(!e.boss){hitEnemy(e,Math.max(1,Math.round(e.maxHp*.04f)),facing,false);return;}
@@ -27,7 +27,17 @@ public final class GameWorld {
     public int areaNumber(){return (stage-1)*5+mapIndex;}
     public String mapTitle(){return MapLayout.title(mapIndex);}
     public Enemy boss;public boolean bossActive;
-    private int entryLevel,entryXp,entryEvolution,entryMaxHp,entryKills;
+    private int entryLevel,entryXp,entryEvolution,entryMaxHp,entryKills,entryCandyLevels;
+    private int candyLevels;
+    public int candyLevelBonus(){return candyLevels;}
+    public int enemyLevel(){return Math.max(1,level-candyLevels);}
+    public final List<BossHazard> bossHazards=new ArrayList<>();
+    public enum BossHazardType { SHOCKWAVE, POISON_POOL, FIRE_PILLAR, HEAT_WAVE }
+    public static final class BossHazard {
+        public final BossHazardType type;public float x,y,w,h,warning,life,vx,age;public final int damage;
+        public BossHazard(BossHazardType t,float x,float y,float w,float h,float warning,float life,float vx,int damage){type=t;this.x=x;this.y=y;this.w=w;this.h=h;this.warning=warning;this.life=life;this.vx=vx;this.damage=damage;}
+    }
+    public String bossMoveName(){if(boss==null)return "";String[][] names={{"연속 몸통박치기","충격파","점프 내려찍기"},{"독침 부채꼴","맹독 장판","독니 돌진"},{"화염탄 연사","추적 불기둥","상하 열파"}};return names[stage-1][boss.pattern];}
     public final List<Eruption> eruptions=new ArrayList<>();
     public static final class Eruption {public final float x,y;public float warning=.95f,life=.75f;public Eruption(float x,float y){this.x=x;this.y=y;}}
     public boolean stageComplete;
@@ -86,7 +96,7 @@ public final class GameWorld {
     }
     public void collectItem(Item item){
         String effect;
-        if(item==Item.CANDY){int previousHp=hp;addExperience(xpRequired()-xp);hp=previousHp;effect="레벨 상승";}
+        if(item==Item.CANDY){int previousHp=hp;level++;candyLevels++;xp=0;offerLevelSkill(level);finishGrowth();hp=previousHp;effect="레벨 상승 / 적 레벨 유지";}
         else if(item==Item.BERRY){hp=Math.min(maxHp,hp+2);effect="하트 1칸 회복";}
         else if(item==Item.TM){inventory[item.ordinal()]++;effect="T키로 배울 기술 선택";if(!choosingSkill()&&!paused&&hp>0)tmSelecting=true;}
         else {inventory[item.ordinal()]++;effect="x"+itemCount(item)+" / "+itemSummary(item);}
@@ -97,7 +107,7 @@ public final class GameWorld {
         int n=itemCount(item);
         switch(item){
         case TM:return "파이리의 기술머신 기술을 골라 배웁니다. T키로 사용.";
-        case CANDY:return "레벨이 1 오릅니다. 하트는 회복하지 않습니다.";
+        case CANDY:return "레벨이 1 오릅니다. 적 레벨은 오르지 않으며 하트는 회복하지 않습니다.";
         case BERRY:return "즉시 하트 1칸을 회복합니다.";
         case MULTI:return "추가 타격 피해 +"+(n*50)+"%.";
         case WIDE:return "유도 범위 "+(450+Math.max(0,n-1)*100)+" / 회전 속도 강화";
@@ -376,20 +386,20 @@ public final class GameWorld {
         public float matchupTime,lastEffectiveness=1;public int lastDamage;public String combatNote="";
         public String typeLabel(){return primaryType.title+(secondaryType==null||secondaryType==primaryType?"":" / "+secondaryType.title);}
         public String weaknesses(){StringBuilder result=new StringBuilder();for(Element element:Element.values()){float factor=TypeChart.multiplier(element,primaryType,secondaryType);if(factor>1){if(result.length()>0)result.append(" / ");result.append(element.title);if(factor==4)result.append(" 4배");}}return result.toString();}
-        public boolean boss;public int cycle,bursts;public float width(){return boss?82:48;}public float height(){return boss?105:64;}
+        public boolean boss;public int cycle,bursts,pattern;public float targetX,jumpStartX;public float width(){return boss?82:48;}public float height(){return boss?105:64;}
         public Phase phase=Phase.PATROL;
         public Enemy(float x,float y,boolean spitter) { this.x=home=x;this.y=homeY=y;this.spitter=spitter;species=spitter?PokemonStats.Species.EKANS:PokemonStats.Species.RATTATA;primaryType=spitter?Element.POISON:Element.NORMAL; }
         public boolean alive() { return hp>0; }
     }
     public static final class Shot {
-        public float x,y,vx,vy,life=3;public int damage=SPIT_DAMAGE;
+        public float x,y,vx,vy,life=3;public int damage=SPIT_DAMAGE;public Element element=Element.POISON;
         public Shot(float x,float y,float vx) { this.x=x;this.y=y;this.vx=vx; }
     }
     public GameWorld() { restart(); }
     private void ground(float x,float width) { blocks.add(new Block(x,0,width,FLOOR)); }
     private void bridge(float x,float top,float width) { blocks.add(new Block(x,top-24,width,24,true)); }
     public void restart() {
-        stage=1;mapIndex=1;totalKills=0;level=1;xp=evolution=0;maxHp=hp=6;elapsed=0;
+        stage=1;mapIndex=1;totalKills=0;level=1;candyLevels=0;xp=evolution=0;maxHp=hp=6;elapsed=0;
         java.util.Arrays.fill(inventory,0);java.util.Arrays.fill(equipped,null);equipped[0]=Skill.SCRATCH;equipped[1]=Skill.GROWL;learnQueue.clear();tmCandidate=null;tmSelecting=false;
         loadStage();
     }
@@ -397,8 +407,8 @@ public final class GameWorld {
         dash=null;lastAttack=null;attackStage=specialAttackStage=speedStage=0;statTime=0;
         System.arraycopy(equipped,0,entrySkills,0,4);physicalBuff=speedBuff=fireBuff=helpBuff=specialPenalty=sleepTime=endureTime=0;castingSkill=null;
         System.arraycopy(inventory,0,entryInventory,0,inventory.length);drops.clear();echoes.clear();healClock=drainCharge=dropThroughTime=0;itemNoticeTime=0;
-        entryLevel=level;entryXp=xp;entryEvolution=evolution;entryMaxHp=maxHp;entryKills=totalKills;
-        bossActive=false;boss=null;eruptions.clear();
+        entryLevel=level;entryCandyLevels=candyLevels;entryXp=xp;entryEvolution=evolution;entryMaxHp=maxHp;entryKills=totalKills;
+        bossActive=false;boss=null;eruptions.clear();bossHazards.clear();
         x=checkpoint=100;y=FLOOR;vx=vy=0;facing=1;grounded=true;
         kills=attackSerial=0;attackTime=attackCooldown=0;invulnerable=1;
         paused=cleared=stageComplete=false;transitionTime=0;rockSpawnTimer=3;
@@ -411,14 +421,14 @@ public final class GameWorld {
             for(MapLayout.Spawn spawn:layout.enemies)spawn(spawn.x,spawn.y,spawn.spitter);
             message=stageName()+" / "+mapTitle()+": 출구까지 이동하세요!";
         }else{
-            boss=new Enemy(920,FLOOR,stage!=1);boss.boss=true;boss.primaryType=stage==1?Element.NORMAL:stage==2?Element.POISON:Element.FIRE;boss.species=stage==1?PokemonStats.Species.RATICATE:stage==2?PokemonStats.Species.ARBOK:PokemonStats.Species.MAGMAR;boss.level=level;boss.hp=boss.maxHp=enemyMaxHp(boss);
+            boss=new Enemy(920,FLOOR,stage!=1);boss.boss=true;boss.primaryType=stage==1?Element.NORMAL:stage==2?Element.POISON:Element.FIRE;boss.species=stage==1?PokemonStats.Species.RATICATE:stage==2?PokemonStats.Species.ARBOK:PokemonStats.Species.MAGMAR;boss.level=enemyLevel();boss.hp=boss.maxHp=enemyMaxHp(boss);
             boss.reward=stage==1?600:stage==2?1000:1400;enemies.add(boss);
             message="보스의 방 / "+bossName()+": 보스를 쓰러뜨리면 출구가 열립니다.";
         }
         messageTime=6;
     }
     private void spawn(float x,float y,boolean spitter) {
-        Enemy e=new Enemy(x,y,spitter);e.level=level;e.maxHp=e.hp=enemyMaxHp(e);e.reward=stage==1?25:stage==2?40:55;enemies.add(e);
+        Enemy e=new Enemy(x,y,spitter);e.level=enemyLevel();e.maxHp=e.hp=enemyMaxHp(e);e.reward=stage==1?25:stage==2?40:55;enemies.add(e);
     }
     public boolean advanceStage() {
         if(choosingSkill()||!stageComplete||(stage==3&&isBossRoom())||paused||hp<=0)return false;
@@ -427,8 +437,8 @@ public final class GameWorld {
     public String nextAreaLabel(){return mapIndex<5?stage+"-"+(mapIndex+1)+" / "+MapLayout.title(mapIndex+1):(stage+1)+"-1 / "+(stage==1?"수정 동굴":"불꽃 화산");}
     public String bossName(){return stage==1?"레트라":stage==2?"아보크":"마그마";}
     public boolean bossDefeated(){return !isBossRoom()||(boss!=null&&!boss.alive());}
-    public boolean retryStage(){if(hp>0||cleared)return false;level=entryLevel;xp=entryXp;evolution=entryEvolution;maxHp=entryMaxHp;hp=maxHp;totalKills=entryKills;System.arraycopy(entryInventory,0,inventory,0,inventory.length);System.arraycopy(entrySkills,0,equipped,0,4);learnQueue.clear();tmCandidate=null;tmSelecting=false;loadStage();return true;}
-    public int xpRequired() { return 40+(level-1)*20; }
+    public boolean retryStage(){if(hp>0||cleared)return false;level=entryLevel;candyLevels=entryCandyLevels;xp=entryXp;evolution=entryEvolution;maxHp=entryMaxHp;hp=maxHp;totalKills=entryKills;System.arraycopy(entryInventory,0,inventory,0,inventory.length);System.arraycopy(entrySkills,0,equipped,0,4);learnQueue.clear();tmCandidate=null;tmSelecting=false;loadStage();return true;}
+    public int xpRequired() { return 40+(enemyLevel()-1)*10; }
     public int attackDamage() { return categoryDamage(Math.round(PokemonStats.damage(level,35,stats().attack,referenceDefense())*(1+.2f*itemCount(Item.SCARF))),true); }
     public String species() { return evolution==0?"파이리":evolution==1?"리자드":"리자몽"; }
     public void addExperience(int amount) {
@@ -438,6 +448,9 @@ public final class GameWorld {
             message="레벨 상승! Lv."+level+" / 공격력 증가";messageTime=3;
             offerLevelSkill(level);
         }
+        finishGrowth();
+    }
+    private void finishGrowth(){
         int next=level>=36?2:level>=16?1:0;
         if(next>evolution) {
             evolution=next;maxHp=6+evolution*2;hp=maxHp;
@@ -549,6 +562,7 @@ public final class GameWorld {
         updateSkillShots(dt);
         updateRockFalls(dt);
         updateEruptions(dt);
+        updateBossHazards(dt);
         if(choosingSkill())return;
         if(x>=exitX()&&hp>0&&bossDefeated()) {
             finishDash();if(hp<=0)return;
@@ -739,6 +753,7 @@ public final class GameWorld {
         e.hp=Math.max(0,e.hp-power);
         if(impact){e.hurtTime=.24f;hitStop=.035f;shake=.1f;effects.add(new Effect(e.x+24,e.y+35,1,direction));}
         if(!e.alive()) {
+            if(e.boss){bossHazards.clear();shots.clear();eruptions.clear();}
             if(e.boss||dropRandom.nextInt(100)<65)drops.add(new Drop(rollItem(dropRandom.nextInt(DROP_WEIGHT_TOTAL)),e.x+e.width()/2,e.y+30));
             effects.add(new Effect(e.x+24,e.y+35,2,direction));kills++;totalKills++;int reward=Math.round(e.reward*(1+.25f*itemCount(Item.EGG)));message="+"+reward+" 경험치 / 적 처치!";messageTime=2;addExperience(reward);
         }
@@ -761,38 +776,59 @@ public final class GameWorld {
         }
     }
     private void bossVolley(Enemy e) {
-        int count=stage==3?5:3;
-        for(int i=0;i<count;i++){Shot shot=new Shot(e.x+e.width()/2+e.dir*45,e.y+44,e.dir*(stage==3?300:270));shot.vy=(i-(count-1)/2f)*70;shot.damage=enemyDamage(e,true,stage==3?75:60);shots.add(shot);}
+        int count=stage==3?5:3;if(e.hp<e.maxHp/2)count+=2;
+        for(int i=0;i<count;i++){Shot shot=new Shot(e.x+e.width()/2+e.dir*45,e.y+44,e.dir*(stage==3?300:270));shot.vy=(i-(count-1)/2f)*(stage==3?65:85);shot.damage=enemyDamage(e,true,stage==3?75:60);shot.element=stage==3?Element.FIRE:Element.POISON;shots.add(shot);}
+    }
+    private void bossWave(Enemy e,BossHazardType type,float y,int dir,float warning){float h=type==BossHazardType.SHOCKWAVE?28:48;bossHazards.add(new BossHazard(type,e.x+e.width()/2,y,55,h,warning,3,dir*(type==BossHazardType.SHOCKWAVE?360:300),enemyDamage(e,type!=BossHazardType.SHOCKWAVE,65)));}
+    private void bossTargets(Enemy e){
+        float[] offsets=e.hp<e.maxHp/2?new float[]{-180,-90,0,90,180}:new float[]{-110,0,110};
+        for(float offset:offsets){float target=Math.max(85,Math.min(1130,e.targetX+offset));
+            if(stage==2)bossHazards.add(new BossHazard(BossHazardType.POISON_POOL,target,FLOOR,90,24,.85f,2.6f,0,enemyDamage(e,true,55)));
+            else {bossHazards.add(new BossHazard(BossHazardType.FIRE_PILLAR,target,FLOOR,56,205,.8f+Math.abs(offset)/500, .7f,0,enemyDamage(e,true,85)));}
+        }
     }
     private void updateBoss(Enemy e,float dt) {
-        Phase previous=e.phase;
+        Phase previous=e.phase;boolean enraged=e.hp<e.maxHp/2;
         switch(e.phase) {
         case PATROL:
             e.vx=0;
-            if(e.timer<=0){e.dir=x<e.x?-1:1;e.phase=Phase.WINDUP;e.timer=stage==1?.7f:.9f;e.bursts=0;}
+            if(e.timer<=0){e.pattern=e.cycle%3;e.dir=x<e.x?-1:1;e.targetX=Math.max(85,Math.min(1110,x));e.jumpStartX=e.x;e.phase=Phase.WINDUP;e.timer=(stage==1?.8f:.95f)-(enraged?.15f:0);e.bursts=0;}
             break;
         case WINDUP:
             e.vx=0;
-            if(e.timer<=0){e.phase=Phase.ATTACK;e.timer=stage==1?.46f:.7f;
-                if(stage==2||(stage==3&&e.cycle%2==0)){bossVolley(e);e.bursts=1;}
-                else if(stage==3){for(float dx:new float[]{-90,0,90})eruptions.add(new Eruption(Math.max(82,Math.min(1140,x+22+dx)),FLOOR));}
+            if(e.timer<=0){e.phase=Phase.ATTACK;
+                e.timer=stage==1?(e.pattern==2?.85f:.6f):e.pattern==2?.8f:1.05f;
+                if(stage==1&&e.pattern==1){bossWave(e,BossHazardType.SHOCKWAVE,FLOOR,1,.15f);bossWave(e,BossHazardType.SHOCKWAVE,FLOOR,-1,.15f);e.bursts=1;}
+                if(stage==2||stage==3){if(e.pattern==0){bossVolley(e);e.bursts=1;}else if(e.pattern==1)bossTargets(e);else if(stage==3){bossWave(e,BossHazardType.HEAT_WAVE,FLOOR,e.dir,.25f);e.bursts=1;}}
             }
             break;
         case ATTACK:
-            if(stage==1){e.vx=approach(e.vx,e.dir*530,3400*dt);e.x=Math.max(85,Math.min(1200-e.width(),e.x+e.vx*dt));}
-            else if(e.timer<.35f&&e.bursts==1){bossVolley(e);e.bursts=2;}
+            if(stage==1){
+                if(e.pattern==0){e.vx=approach(e.vx,e.dir*(enraged?610:530),3400*dt);e.x=Math.max(85,Math.min(1200-e.width(),e.x+e.vx*dt));}
+                else if(e.pattern==2){float p=Math.max(0,Math.min(1,1-e.timer/.85f));e.x=e.jumpStartX+(e.targetX-e.jumpStartX)*p;e.y=FLOOR+(float)Math.sin(p*Math.PI)*175;if(e.timer<=0){e.y=FLOOR;bossWave(e,BossHazardType.SHOCKWAVE,FLOOR,1,.15f);bossWave(e,BossHazardType.SHOCKWAVE,FLOOR,-1,.15f);shake=.18f;}}
+            }else if(e.pattern==0&&e.timer<.55f&&e.bursts==1){bossVolley(e);e.bursts=2;}
+            else if(stage==2&&e.pattern==2){e.vx=approach(e.vx,e.dir*470,3000*dt);e.x=Math.max(85,Math.min(1200-e.width(),e.x+e.vx*dt));if(e.timer<=0)bossHazards.add(new BossHazard(BossHazardType.POISON_POOL,e.x,FLOOR,110,24,.45f,2.2f,0,enemyDamage(e,true,50)));}
+            else if(stage==3&&e.pattern==2&&e.timer<.4f&&e.bursts==1){bossWave(e,BossHazardType.HEAT_WAVE,FLOOR+135,e.dir,.35f);e.bursts=2;}
             if(e.timer<=0){
-                if(stage==1&&e.bursts==0){e.bursts=1;e.phase=Phase.WINDUP;e.timer=.5f;e.dir=x<e.x?-1:1;}
-                else{e.phase=Phase.RECOVER;e.timer=1.4f;e.vx=0;e.cycle++;}
+                if(stage==1&&e.pattern==0&&e.bursts==0){e.bursts=1;e.phase=Phase.WINDUP;e.timer=.55f;e.dir=x<e.x?-1:1;}
+                else{e.y=FLOOR;e.phase=Phase.RECOVER;e.timer=enraged?1.1f:1.5f;e.vx=0;e.cycle++;}
             }
             break;
         case RECOVER:
-            e.vx=0;if(e.timer<=0){e.phase=Phase.PATROL;e.timer=.45f;}break;
+            e.y=FLOOR;e.vx=0;if(e.timer<=0){e.phase=Phase.PATROL;e.timer=.45f;}break;
         default:break;
         }
         if(e.phase!=previous)e.phaseTime=0;
         e.walkClock+=Math.abs(e.vx)/100f*dt;
         if(overlap(x,y,PLAYER_W,PLAYER_H,e.x,e.y,e.width(),e.height()))damage(enemyDamage(e,false,e.phase==Phase.ATTACK?80:35),e.x+e.width()/2);
+    }
+    private void updateBossHazards(float dt){
+        if(boss==null||!boss.alive()){bossHazards.clear();return;}
+        for(Iterator<BossHazard> it=bossHazards.iterator();it.hasNext();){BossHazard h=it.next();h.age+=dt;
+            if(h.warning>0){h.warning=Math.max(0,h.warning-dt);continue;}
+            float old=h.x;h.x+=h.vx*dt;h.life-=dt;if(h.life<=0||h.x< -120||h.x>1400){it.remove();continue;}
+            if(overlap(Math.min(old,h.x),h.y,Math.abs(h.x-old)+h.w,h.h,x,y,PLAYER_W,PLAYER_H))damage(h.damage,h.x+h.w/2);
+        }
     }
     private float surfaceBelow(float px,float py){float top=FLOOR;for(Block b:blocks)if(px>=b.x&&px<=b.x+b.w&&b.y+b.h<=py)top=Math.max(top,b.y+b.h);return top;}
     private void updateEruptions(float dt) {
@@ -800,7 +836,7 @@ public final class GameWorld {
         for(Iterator<Eruption> it=eruptions.iterator();it.hasNext();){Eruption eruption=it.next();
             if(eruption.warning>0){eruption.warning=Math.max(0,eruption.warning-dt);continue;}
             eruption.life-=dt;if(eruption.life<=0){it.remove();continue;}
-            if(overlap(eruption.x-24,eruption.y,48,150,x,y,PLAYER_W,PLAYER_H))damage(2,eruption.x);
+            if(!isBossRoom()&&overlap(eruption.x-24,eruption.y,48,150,x,y,PLAYER_W,PLAYER_H))damage(2,eruption.x);
         }
     }
     private static float approach(float value,float target,float delta){return value<target?Math.min(target,value+delta):Math.max(target,value-delta);}
