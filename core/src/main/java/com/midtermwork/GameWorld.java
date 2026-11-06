@@ -60,7 +60,7 @@ public final class GameWorld {
         public Effect(float x,float y,int kind,int dir){this.x=x;this.y=y;this.kind=kind;this.dir=dir;life=kind==2?.55f:.32f;}
     }
     public enum Item {
-        CANDY("이상한사탕","rare-candy",2250,5), BERRY("자뭉열매","sitrus-berry",2250,5),
+        CANDY("이상한사탕","rare-candy",900,5), BERRY("자뭉열매","sitrus-berry",3600,5),
         MULTI("멀티렌즈","zoom-lens",180,2), WIDE("광각렌즈","wide-lens",100,1),
         CHARCOAL("목탄","charcoal",625,4), FANG("용의이빨","dragon-fang",625,4),
         SASH("기합의띠","focus-sash",180,2), LEFTOVERS("먹다남은음식","leftovers",180,2),
@@ -89,7 +89,12 @@ public final class GameWorld {
     public String itemNotice="";public float itemNoticeTime;
     public int itemCount(Item item){return inventory[item.ordinal()];}
     public void setDropSeed(long seed){dropRandom.setSeed(seed);combatRandom.setSeed(seed);}
-    public static final int DROP_WEIGHT_TOTAL=10000;
+    public static final int DROP_WEIGHT_TOTAL=10000,NORMAL_DROP_PERCENT=20,BOSS_DROP_COUNT=3,BOSS_DROP_WEIGHT_TOTAL=3000;
+    public static boolean normalDropOccurs(int roll){if(roll<0||roll>=100)throw new IllegalArgumentException("drop roll outside 0..99");return roll<NORMAL_DROP_PERCENT;}
+    public static Item rollBossItem(int roll){
+        if(roll<0||roll>=BOSS_DROP_WEIGHT_TOTAL)throw new IllegalArgumentException("boss roll outside weight range");
+        for(Item item:Item.values())if(item.tier<=3){roll-=item.weight;if(roll<0)return item;}throw new AssertionError();
+    }
     public static Item rollItem(int roll){
         if(roll<0||roll>=DROP_WEIGHT_TOTAL)throw new IllegalArgumentException("roll outside drop weight range");
         for(Item item:Item.values()){roll-=item.weight;if(roll<0)return item;}throw new AssertionError();
@@ -754,7 +759,8 @@ public final class GameWorld {
         if(impact){e.hurtTime=.24f;hitStop=.035f;shake=.1f;effects.add(new Effect(e.x+24,e.y+35,1,direction));}
         if(!e.alive()) {
             if(e.boss){bossHazards.clear();shots.clear();eruptions.clear();}
-            if(e.boss||dropRandom.nextInt(100)<65)drops.add(new Drop(rollItem(dropRandom.nextInt(DROP_WEIGHT_TOTAL)),e.x+e.width()/2,e.y+30));
+            if(e.boss){for(int i=0;i<BOSS_DROP_COUNT;i++)drops.add(new Drop(rollBossItem(dropRandom.nextInt(BOSS_DROP_WEIGHT_TOTAL)),e.x+e.width()/2+(i-1)*40,e.y+30));}
+            else if(normalDropOccurs(dropRandom.nextInt(100)))drops.add(new Drop(rollItem(dropRandom.nextInt(DROP_WEIGHT_TOTAL)),e.x+e.width()/2,e.y+30));
             effects.add(new Effect(e.x+24,e.y+35,2,direction));kills++;totalKills++;int reward=Math.round(e.reward*(1+.25f*itemCount(Item.EGG)));message="+"+reward+" 경험치 / 적 처치!";messageTime=2;addExperience(reward);
         }
     }

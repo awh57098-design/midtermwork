@@ -1,0 +1,11 @@
+package com.midtermwork;
+import org.junit.Test;
+import static org.junit.Assert.*;
+public class DropBalanceChecks {
+ private void kill(GameWorld w,GameWorld.Enemy e) throws Exception{java.lang.reflect.Method m=GameWorld.class.getDeclaredMethod("hitEnemy",GameWorld.Enemy.class,int.class,int.class,boolean.class);m.setAccessible(true);m.invoke(w,e,e.hp,1,true);}
+ @Test public void fifthTierKeepsFortyFivePercentWithCandyBerryTwoToEight(){int candy=0,berry=0;for(int i=0;i<GameWorld.DROP_WEIGHT_TOTAL;i++){GameWorld.Item item=GameWorld.rollItem(i);if(item==GameWorld.Item.CANDY)candy++;if(item==GameWorld.Item.BERRY)berry++;}assertEquals(900,candy);assertEquals(3600,berry);assertEquals(4500,candy+berry);assertEquals(candy*4,berry);}
+ @Test public void normalDropChanceIsExactlyTwentyOfOneHundred(){int count=0;for(int i=0;i<100;i++)if(GameWorld.normalDropOccurs(i))count++;assertEquals(20,count);assertTrue(GameWorld.normalDropOccurs(19));assertFalse(GameWorld.normalDropOccurs(20));}
+ @Test public void bossTableContainsOnlyTopThreeTiersAndKeepsTheirWeights(){int[] counts=new int[GameWorld.Item.values().length];for(int i=0;i<GameWorld.BOSS_DROP_WEIGHT_TOTAL;i++){GameWorld.Item item=GameWorld.rollBossItem(i);assertTrue(item.tier<=3);counts[item.ordinal()]++;}for(GameWorld.Item item:GameWorld.Item.values())assertEquals(item.title,item.tier<=3?item.weight:0,counts[item.ordinal()]);}
+ @Test public void bossActuallyDropsThreeHighTierToolsAndNeverRewardsDeathTwice() throws Exception{GameWorld w=new GameWorld();w.enemies.clear();GameWorld.Enemy e=new GameWorld.Enemy(600,112,true);e.boss=true;e.hp=e.maxHp=100;w.enemies.add(e);w.setDropSeed(42);kill(w,e);assertEquals(3,w.drops.size());java.util.Set<Float> positions=new java.util.HashSet<>();for(GameWorld.Drop d:w.drops){assertTrue(d.item.tier<=3);positions.add(d.x);}assertEquals(3,positions.size());kill(w,e);assertEquals(3,w.drops.size());assertEquals(1,w.totalKills);}
+ @Test public void actualNormalDeathUsesTwentyPercentGate() throws Exception{for(int seed=0;seed<100;seed++){java.util.Random random=new java.util.Random(seed);boolean expected=random.nextInt(100)<20;GameWorld w=new GameWorld();w.enemies.clear();GameWorld.Enemy e=new GameWorld.Enemy(600,112,true);e.hp=1;w.enemies.add(e);w.setDropSeed(seed);kill(w,e);assertEquals(expected?1:0,w.drops.size());}}
+}
