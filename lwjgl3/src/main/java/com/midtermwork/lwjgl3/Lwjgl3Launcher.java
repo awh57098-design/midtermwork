@@ -12,7 +12,7 @@ public class Lwjgl3Launcher {
     }
 
     private static Lwjgl3Application createApplication() {
-        return new Lwjgl3Application(new Main(), getDefaultConfiguration());
+        return new Lwjgl3Application(new Main(new DesktopPointer()), getDefaultConfiguration());
     }
 
     private static Lwjgl3ApplicationConfiguration getDefaultConfiguration() {
@@ -28,7 +28,15 @@ public class Lwjgl3Launcher {
         //// useful for testing performance, but can also be very stressful to some hardware.
         //// You may also need to configure GPU drivers to fully disable Vsync; this can cause screen tearing.
 
-        configuration.setWindowedMode(1280, 720);
+        // Fit the client area plus window decorations inside the current monitor work area.
+        int[] workX={0},workY={0},workW={1280},workH={800};
+        org.lwjgl.glfw.GLFW.glfwGetMonitorWorkarea(org.lwjgl.glfw.GLFW.glfwGetPrimaryMonitor(),workX,workY,workW,workH);
+        int width=Math.min(1280,Math.min(Math.max(320,workW[0]-80),Math.max(180,workH[0]-120)*16/9));
+        width=Math.max(320,width/16*16);int height=width/16*9;
+        configuration.setWindowedMode(width,height);
+        configuration.setWindowPosition(workX[0]+(workW[0]-width)/2,workY[0]+Math.max(30,(workH[0]-height)/2-10));
+        configuration.setHdpiMode(com.badlogic.gdx.graphics.glutils.HdpiMode.Logical);
+        configuration.setResizable(true);
         //// You can change these files; they are in lwjgl3/src/main/resources/ .
         //// They can also be loaded from the root of assets/ .
         configuration.setWindowIcon("libgdx128.png", "libgdx64.png", "libgdx32.png", "libgdx16.png");

@@ -4,19 +4,41 @@
 
 ## 현재 플레이 버전
 
-- 낭떠러지 3구간: 계단식 발판을 밟아 건너야 함. 발판은 아래에서 통과하고 위에 착지하는 방식
-- 가시 3구간: 점프 또는 위쪽 발판으로 우회
-- 중간 체크포인트 3곳: 추락하면 하트 1개를 잃고 마지막 체크포인트로 복귀
-- 꼬렛: 순찰 → 노란 공격 예고 → 방향을 고정한 돌진 → 파란 회복 시간
-- 아보: 노란 공격 예고 후 독 투사체 발사 → 회복 시간
-- 적의 공격 예고·공격 중에는 피해 감소, 회복 중에는 플레이어 반격 피해 1.7배
-- 하트 3개 시작: 접촉 0.5개, 돌진 1개, 독 투사체 1.5개, 가시·추락 1개 감소
-- 피격 후 약 1.1초 무적. 하트가 모두 사라지면 기절하며 R로 재시작
-- 적 처치당 경험치 25. 일반 레벨업은 공격력만 증가
-- Lv.16 리자드로 진화해 하트 4개, Lv.36 리자몽으로 진화해 하트 5개 및 체력 회복
-- 끝의 깃발에 도착하면 맵 클리어. 적 전멸만으로 클리어되지 않음
+숲·수정 동굴·화산 각 테마마다 일반 맵 4개와 독립 보스방 1개를 진행합니다. 일반 맵 12개와 보스방 3개, 총 15구역입니다.
 
-현재 테스트 맵은 1개입니다. 이번 맵의 적 10마리만으로는 Lv.16에 도달하지 않으며, 진화 규칙은 향후 스테이지 확장에 사용할 수 있도록 연결하고 자동 검사했습니다. 보스, 스테이지 전환, 아이템은 추후 구현합니다.
+| 테마 | 일반 맵 | 독립 보스방 |
+|---|---|---|
+| 숲 | 1-1 ~ 1-4 | 1-5 레트라 |
+| 수정 동굴 | 2-1 ~ 2-4 | 2-5 아보크 |
+| 화산 | 3-1 ~ 3-4 | 3-5 마그마 |
+
+## 맵 구성
+
+각 테마 안에서 네 일반 맵의 지형 구성을 다르게 설계했습니다.
+
+1. TRAIL: 기본 탐험, 발판과 함정. 동굴은 고층 암반 계단을 포함합니다.
+2. HIGH ROUTE: 높은 계단을 연속으로 오르내리는 경로와 높은 위치의 적.
+3. RAVINES: 네 개의 낭떠러지 구간과 중간 함정 우회 발판.
+4. GAUNTLET: 단차가 있는 지상 전투 구간, 넓은 가시와 우회 발판.
+5. BOSS CHAMBER: 일반 적과 탐험 길을 제외한 한 화면짜리 보스 전용 공간.
+
+일반 맵은 월드 너비 4500의 횡스크롤 맵이고, 보스방은 너비 1280으로 카메라가 고정됩니다. 일반 맵에는 체크포인트 3곳이 있습니다. 동굴의 낙석과 화산의 분출은 일반 맵에서 작동하며, 보스방에서는 보스의 전투 패턴을 사용합니다.
+
+## 진행과 재도전
+
+- 일반 맵 끝의 깃발에 도착하면 다음 일반 맵으로 이동하며, 네 번째 맵 다음에는 보스방에 들어갑니다.
+- 보스방에서는 보스를 쓰러뜨려야 출구를 사용할 수 있습니다. 보스방을 클리어하면 다음 테마의 첫 맵으로 넘어갑니다.
+- 3-5 마그마를 처치한 뒤 출구에 도착하면 최종 클리어 화면을 표시합니다.
+- 맵 전환은 안내 후 1.4초 뒤 자동 진행되며 Enter로 즉시 이동할 수도 있습니다.
+- 레벨·경험치·진화 단계·해금 기술·누적 처치는 유지됩니다. 맵 입장 시 체력과 기술 쿨다운은 회복됩니다.
+- 기절하면 Enter로 현재 맵의 입장 시점 성장 상태로 재도전합니다. 실패한 시도의 경험치를 초기화해 반복 파밍을 막습니다.
+- R은 전체 모험을 1-1, 레벨 1부터 다시 시작합니다.
+
+## 전투와 성장
+
+일반 적 체력은 테마에 따라 65/90/115, 경험치는 25/40/55입니다. 보스 체력은 260/340/440이며 경험치는 600/1000/1400입니다. 레트라는 2연속 돌진, 아보크는 독탄 연사, 마그마는 화염탄과 경고 후 화염 기둥을 번갈아 사용합니다.
+
+체력은 하트 3개로 시작합니다. 접촉 0.5개, 돌진·함정·낙석·분출 1개, 일반 독탄 1.5개를 잃으며 피격 후 약 1.1초 무적입니다. 보스 투사체는 하트 1개 피해를 줍니다. 레벨업 시 공격력이 오르며 Lv.16 리자드(하트 4개), Lv.36 리자몽(하트 5개) 진화 규칙은 유지합니다. 전체 성장 속도·진화 도달 시점은 추가 밸런스 조정 대상입니다.
 
 ## 움직임과 연출
 
@@ -49,6 +71,7 @@ X는 시작부터 사용 가능하며 C/A/S는 레벨업으로 순서대로 해�
 | Space | 지상에서 점프 |
 | J 또는 Z | 기본공격 (누르고 있으면 반복) |
 | X / C / A / S | 기술 4개 (한 번씩 누르기) |
+| Enter | 다음 구역으로 즉시 이동 / 기절 시 현재 맵 재도전 |
 | ESC | 일시정지 / 재개 |
 | R | 처음부터 재시작 |
 
@@ -67,7 +90,8 @@ Java / libGDX 1.14.2 / LWJGL3 / Gradle Wrapper를 사용합니다.
 
 ## 코드
 
-- `core/src/main/java/com/midtermwork/GameWorld.java`: 이동, 충돌, 전투, 성장 규칙
+- `core/src/main/java/com/midtermwork/MapLayout.java`: 일반 맵·보스방 지형과 적 배치 카탈로그
+- `core/src/main/java/com/midtermwork/GameWorld.java`: 이동, 충돌, 전투, 성장, 15구역 진행 규칙
 - `core/src/main/java/com/midtermwork/Main.java`: 입력, 게임 화면, HUD
 - `core/src/test/java/com/midtermwork/GameWorldChecks.java`: 게임 규칙 검증
 - `lwjgl3`: 데스크톱 실행기
@@ -76,7 +100,7 @@ Java / libGDX 1.14.2 / LWJGL3 / Gradle Wrapper를 사용합니다.
 
 ## 앞으로의 개발 목표
 
-서로 구분되는 스테이지 3개, 진화 연출, 보스 패턴, 포켓몬 도구를 순서대로 확장합니다.
+진화 연출, 성장·전투 밸런스, 포켓몬 도구와 사운드를 보완합니다.
 
 과제 발표자료, 채점 기준 설명 레포트, 시연 영상과 GitHub 링크는 최종 구현에 맞춰 준비합니다.
 
@@ -84,3 +108,48 @@ Java / libGDX 1.14.2 / LWJGL3 / Gradle Wrapper를 사용합니다.
 
 프로젝트는 gdx-liftoff로 생성했습니다. 포켓몬 스프라이트의 출처와 권리 표시는 `assets/CREDITS.md`를 참고하세요.
 수업의 `Project2.zip`과 강의 PPT는 별도 참고 자료이며 저장소에 포함하지 않았습니다.
+
+## Enemy loot and held items
+
+Normal enemies drop one item with 65% probability; bosses always drop one. Walk close to collect. The upper-left inventory displays owned held tools, with a count beside each icon. Hover for the current stacked effect and explanation. Hover also works while paused (ESC) and after resizing, including letterboxed windows.
+
+Held tools have no collection cap. Every copy contributes; copies are no longer converted to healing. Rare Candy and Sitrus Berry remain immediate consumables. All effects below are custom rules for this platformer.
+
+| Item | Drop weight | Effect per copy |
+| --- | ---: | --- |
+| Rare Candy | 40% | Gain one level, heal one heart |
+| Sitrus Berry | 10% | Heal one heart |
+| Multi Lens | 4% | One delayed secondary hit, +50% original damage per copy |
+| Wide Lens | 4% | Homing; extra copies add 100 range and faster steering |
+| Charcoal | 5% | Fire skill direct damage +20% |
+| Dragon Fang | 5% | Dragon skill damage +20% |
+| Focus Sash | 4% | One charge saves a lethal hit with half a heart |
+| Leftovers | 3% | Heal half a heart every 12 active seconds |
+| Muscle Band | 4% | Basic attacks and Fire Fang +15% |
+| Wise Glasses | 4% | Ember and Dragon Breath +15% |
+| Shell Bell | 3% | +1 healing charge per direct hit; 6 charge heals half a heart |
+| Scope Lens | 3% | Critical chance = 1 - 0.9^copies; critical damage x1.5 |
+| Quick Claw | 3% | Cooldown multiplier = 1 / (1 + 0.12 * copies) |
+| Silk Scarf | 3% | Basic attack damage +20% |
+| Lucky Egg | 3% | Enemy EXP +25% |
+| Expert Belt | 2% | Direct damage against bosses +20% |
+
+Weights are conditional on a drop occurring, totaling 100%. Burn ticks and Multi Lens echoes do not create further echoes or Shell Bell charges. Tool counts carry into the next map; retry restores inventory and growth present at map entry. R clears the adventure. Icons use PokeAPI item sprites; see assets/CREDITS.md. The icon/count/hover presentation is inspired by PokeRogue (https://github.com/pagefaultgames/pokerogue); no PokeRogue code or assets are copied.
+## 한국어 UI 및 발판 조작
+화면 안내, 기술, 적 상태, 도구 이름과 설명을 한국어로 표시합니다. 발판 위에서 아래 방향키를 누른 채 Space를 누르면 해당 높이의 발판을 통과합니다. 아래 발판과 단단한 바닥에는 정상적으로 착지합니다. 좁은 틈에서는 몸 전체가 아닌 발 중심 14px로 착지를 판정합니다. 일반 Space 점프는 그대로 사용할 수 있습니다.
+
+## 화면 크기와 도구 마우스 판정
+게임 창은 모니터 작업 영역 안에서 16:9로 시작하며, 창 크기를 바꾸면 여백을 두고 화면 전체를 맞춥니다. HUD 전용 뷰포트를 사용하고 마우스도 같은 영역의 좌표로 변환합니다. 도구 아이콘은 투명 여백을 제거해 표시하며, 커서를 올린 아이콘에는 테두리가 표시됩니다. 오른쪽 위 공격력은 레벨과 기본 공격용 도구를 반영한 값이며, 보스 배율·치명타·적의 빈틈 배율은 타격 순간에 적용합니다.
+
+## 가장자리 충돌 및 현재 커서 좌표
+플레이어 충돌은 이전 위치와 목표 위치 사이에서 실제로 통과한 면을 기준으로 판정합니다. 발판에서 떨어지는 도중 몸 일부가 지형에 겹쳐도 지형 반대편 끝으로 밀어내지 않습니다. Windows에서는 GetPhysicalCursorPos로 물리 좌표를 읽고, 같은 DPI 인식 컨텍스트에서 ScreenToClient와 GetClientRect로 창 내부 좌표와 실제 크기를 구한 뒤 게임의 논리 크기에 맞춥니다. 스레드 DPI 컨텍스트는 읽기가 끝나면 복원합니다. 다른 플랫폼 및 실패 시에는 GLFW 커서 좌표를 사용합니다.
+
+도구 설명은 실제 아이콘의 32x32 표시 영역 안에서 불투명한 이미지 픽셀 위에 커서가 있을 때만 표시합니다. 이미지의 투명한 부분, 수량 텍스트, 테두리 및 아래 빈 영역은 마우스 판정에서 제외합니다.
+
+## 실제 렌더링 위치에 따른 도구 판정
+도구를 그릴 때 SpriteBatch의 실제 변환 행렬과 GL 뷰포트에서 화면 픽셀 사각형을 기록합니다. 마우스를 프레임버퍼 좌표로 바꿔 이 사각형과 이미지 알파 마스크로 판정하며, 슬롯의 논리 좌표는 마우스 판정에 사용하지 않습니다. 고해상도 버퍼 비율과 화면 여백을 함께 반영합니다.
+
+회귀 확인 도구: tools/FramebufferHoverCheck.java. assets 폴더에서 Java 소스 실행 기능으로 완성 JAR를 classpath에 넣고 창의 가로·세로 크기를 인자로 실행합니다. 실제 프레임버퍼에서 아이콘이 있는/없는 화면을 비교해 보이는 픽셀을 찾고, 그 픽셀에서만 설명이 뜨는지 확인합니다. 테스트 스크린샷은 build/hover-check에 저장합니다.
+
+## 게임 내 십자 커서
+데스크톱 게임 창 안에서는 OS 화살표를 숨기고 십자 커서를 표시합니다. 십자는 HUD 논리 좌표를 다시 투영하지 않고, 도구 판정에 사용하는 동일한 프레임버퍼 픽셀 좌표에 마지막으로 그립니다. 맵 카메라와 독립적으로 움직이며 창 밖 또는 포커스 해제 시 일반 화살표를 복원합니다. 표시/입력 배율 차이의 근본 원인은 별도로 확인 중이며, 게임 내 보이는 커서와 도구 판정을 일치시키는 방식입니다.

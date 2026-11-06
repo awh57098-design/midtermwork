@@ -5,7 +5,7 @@ import static org.junit.Assert.*;
 
 public final class GameWorldChecks {
     private void tick(GameWorld w,int frames,float move,boolean attack) { for(int i=0;i<frames;i++)w.step(1f/60f,move,false,attack); }
-    private GameWorld quiet() { GameWorld w=new GameWorld();w.enemies.clear();return w; }
+    private GameWorld quiet() { GameWorld w=new GameWorld();w.enemies.clear();if(w.boss!=null)w.boss.hp=0;return w; }
     @Test public void movementJumpAndPause() {
         GameWorld w=quiet();tick(w,30,1,false);assertEquals(218,w.x,.1f);
         w.step(1f/60f,0,true,false);assertTrue(w.y>112);float vy=w.vy;
@@ -40,7 +40,7 @@ public final class GameWorldChecks {
         while(w.level<16)w.addExperience(w.xpRequired()-w.xp);
         assertEquals(1,w.evolution);assertEquals(8,w.maxHp);assertEquals(8,w.hp);
         while(w.level<36)w.addExperience(w.xpRequired()-w.xp);
-        assertEquals(2,w.evolution);assertEquals(10,w.maxHp);assertEquals("CHARIZARD",w.species());
+        assertEquals(2,w.evolution);assertEquals(10,w.maxHp);assertEquals("리자몽",w.species());
     }
     @Test public void attackTelegraphLocksDirectionAndLeavesOpening() {
         GameWorld w=new GameWorld();GameWorld.Enemy e=w.enemies.get(0);w.x=300;
@@ -92,6 +92,6 @@ public final class GameWorldChecks {
         walk(w,2400);jumpTo(w,2480,210);walk(w,2630);jumpTo(w,2690,112);
         walk(w,2800);jumpTo(w,2840,200);walk(w,2910);jumpTo(w,3020,280);walk(w,3070);jumpTo(w,3190,205);walk(w,3280);jumpTo(w,3410,112);
         walk(w,3690);jumpTo(w,3770,210);walk(w,3930);jumpTo(w,4010,112);walk(w,4370);tick(w,10,1,false);
-        assertTrue(w.cleared);assertEquals(6,w.hp);
+        assertTrue(w.stageComplete);assertFalse(w.cleared);assertEquals(6,w.hp);
     }
 }
