@@ -39,3 +39,18 @@ The volcano panorama and terrain/prop atlas in assets/environment/volcano-backgr
 Item sprites: https://github.com/PokeAPI/sprites/tree/master/sprites/items (Pokemon assets owned by their respective rights holders). Multi Lens uses the zoom-lens icon. Item effects are customized for this student game.
 
 Korean UI bitmap font: Noto Sans KR, Google / Adobe, SIL Open Font License 1.1. Generated from https://github.com/google/fonts/tree/main/ofl/notosanskr . License: fonts/OFL.txt. Rebuild: python tools/generate_korean_font.py path/to/NotoSansKR.ttf (Pillow required).
+
+Move data (Scarlet/Violet): https://github.com/PokeAPI/api-data/blob/master/data/api/v2/pokemon/4/index.json . Korean names and move type/category/power: https://github.com/PokeAPI/pokeapi/tree/master/data/v2/csv . Cross-check: https://pokemondb.net/pokedex/charmander/moves/9 . Combat effects are adapted to this real-time platformer. TM sprite: PokeAPI sprites/items/tm-normal.png.
+
+Modern 18-type chart: https://github.com/PokeAPI/pokeapi/blob/master/data/v2/csv/type_efficacy.csv . Bundled data: assets/moves/type-efficacy.csv.
+
+
+### 기술 부가 효과 데이터
+PokeAPI의 move_meta 및 move_meta_stat_changes 데이터를 참고했습니다. 게임용 사본: moves/move-effects.json. 턴제 수치 일부는 실시간 전투 규칙으로 변환했습니다.
+- https://github.com/PokeAPI/pokeapi/blob/master/data/v2/csv/move_meta.csv
+- https://github.com/PokeAPI/pokeapi/blob/master/data/v2/csv/move_meta_stat_changes.csv
+
+
+### 종족치와 기술 시각 효과
+- 종족치: PokeAPI API data, https://github.com/PokeAPI/api-data (pokemon 4, 5, 6, 19, 20, 23, 24, 126). 게임용 데이터: moves/species-stats.json.
+- 새 기술 시각 효과는 ShapeRenderer로 직접 그리는 절차적 도형이며 외부 이펙트 이미지를 사용하지 않습니다.

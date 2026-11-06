@@ -7,7 +7,7 @@ public final class StageChecks {
     private void tick(GameWorld w,int frames){for(int i=0;i<frames;i++)w.step(1f/60f,0,false,false);}
     private GameWorld cave(){GameWorld w=new GameWorld();while(w.stage<2){if(w.boss!=null)w.boss.hp=0;w.x=w.exitX()+2;w.step(1f/60f,0,false,false);assertTrue(w.advanceStage());}return w;}
     @Test public void forestTransitionsOnceAndPreservesProgress(){
-        GameWorld w=new GameWorld();w.addExperience(180);GameWorld.Enemy first=w.enemies.get(0);first.hp=1;first.burnTime=1;first.burnTick=0;tick(w,1);
+        GameWorld w=new GameWorld();TestWorlds.legacy(w);w.addExperience(180);GameWorld.Enemy first=w.enemies.get(0);first.hp=1;first.burnTime=1;first.burnTick=0;tick(w,1);
         int level=w.level,xp=w.xp,total=w.totalKills;w.hp=3;w.x=4382;w.step(1f/60f,0,false,false);
         assertTrue(w.stageComplete);assertFalse(w.cleared);assertFalse(w.trySkill(0));
         w.paused=true;float timer=w.transitionTime;tick(w,180);assertEquals(timer,w.transitionTime,0);assertEquals(1,w.stage);
@@ -17,7 +17,7 @@ public final class StageChecks {
     }
     @Test public void caveHasDifferentLayoutAndStrongerEnemies(){
         GameWorld w=cave();assertEquals("수정 동굴",w.stageName());assertEquals(11,w.enemies.size());
-        assertTrue(w.blocks.stream().anyMatch(b->b.y+b.h==385));assertEquals(90,w.enemies.get(0).maxHp);assertEquals(40,w.enemies.get(0).reward);
+        assertTrue(w.blocks.stream().anyMatch(b->b.y+b.h==385));assertEquals(w.enemies.get(0).stats().hp,w.enemies.get(0).maxHp);assertEquals(40,w.enemies.get(0).reward);
         for(float marker:w.checkpointPositions())assertTrue(w.blocks.stream().anyMatch(b->!b.oneWay&&marker>=b.x&&marker+44<=b.x+b.w));
     }
     @Test public void fallingRockWarnsThenDamagesAndPauses(){
@@ -28,7 +28,7 @@ public final class StageChecks {
     }
     @Test public void restartFromCaveStartsFreshForest(){
         GameWorld w=cave();w.addExperience(150);w.rockFalls.add(new GameWorld.RockFall(100));w.restart();
-        assertEquals(1,w.stage);assertEquals(1,w.level);assertEquals(0,w.xp);assertEquals(0,w.totalKills);assertEquals(6,w.hp);assertTrue(w.rockFalls.isEmpty());assertEquals(10,w.enemies.size());assertEquals(65,w.enemies.get(0).maxHp);
+        assertEquals(1,w.stage);assertEquals(1,w.level);assertEquals(0,w.xp);assertEquals(0,w.totalKills);assertEquals(6,w.hp);assertTrue(w.rockFalls.isEmpty());assertEquals(10,w.enemies.size());assertEquals(w.enemies.get(0).stats().hp,w.enemies.get(0).maxHp);
     }
     private float steering(GameWorld w,float target){
         float dx=target-w.x;float stopping=w.vx*w.vx/(2*(w.grounded?3200:1300));

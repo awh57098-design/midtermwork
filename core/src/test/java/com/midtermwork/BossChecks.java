@@ -13,7 +13,7 @@ public final class BossChecks {
   GameWorld w=stage(1);w.x=w.exitX()+2;tick(w,1);assertTrue(w.bossActive);assertFalse(w.stageComplete);assertTrue(w.x<w.exitX());
   w.x=w.boss.x-90;w.boss.hp=1;w.boss.phase=GameWorld.Phase.RECOVER;w.boss.timer=10;
   w.step(1f/60f,0,false,true);tick(w,35);assertTrue(w.bossDefeated());assertEquals(1,w.totalKills);int lv=w.level,xp=w.xp;
-  tick(w,100);assertEquals(lv,w.level);assertEquals(xp,w.xp);w.x=w.exitX()+2;tick(w,1);assertTrue(w.stageComplete);
+  tick(w,100);assertEquals(lv,w.level);assertEquals(xp,w.xp);while(w.choosingSkill())w.skipLearning();w.x=w.exitX()+2;tick(w,5);assertTrue(w.stageComplete);
  }
  @Test public void eachBossHasReadableAttacksAndRecovery(){
   for(int level=1;level<=3;level++){

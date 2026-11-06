@@ -1,0 +1,98 @@
+[
+  {
+    "id": 4,
+    "species": "CHARMANDER",
+    "stats": {
+      "hp": 39,
+      "attack": 52,
+      "defense": 43,
+      "special-attack": 60,
+      "special-defense": 50,
+      "speed": 65
+    }
+  },
+  {
+    "id": 5,
+    "species": "CHARMELEON",
+    "stats": {
+      "hp": 58,
+      "attack": 64,
+      "defense": 58,
+      "special-attack": 80,
+      "special-defense": 65,
+      "speed": 80
+    }
+  },
+  {
+    "id": 6,
+    "species": "CHARIZARD",
+    "stats": {
+      "hp": 78,
+      "attack": 84,
+      "defense": 78,
+      "special-attack": 109,
+      "special-defense": 85,
+      "speed": 100
+    }
+  },
+  {
+    "id": 19,
+    "species": "RATTATA",
+    "stats": {
+      "hp": 30,
+      "attack": 56,
+      "defense": 35,
+      "special-attack": 25,
+      "special-defense": 35,
+      "speed": 72
+    }
+  },
+  {
+    "id": 20,
+    "species": "RATICATE",
+    "stats": {
+      "hp": 55,
+      "attack": 81,
+      "defense": 60,
+      "special-attack": 50,
+      "special-defense": 70,
+      "speed": 97
+    }
+  },
+  {
+    "id": 23,
+    "species": "EKANS",
+    "stats": {
+      "hp": 35,
+      "attack": 60,
+      "defense": 44,
+      "special-attack": 40,
+      "special-defense": 54,
+      "speed": 55
+    }
+  },
+  {
+    "id": 24,
+    "species": "ARBOK",
+    "stats": {
+      "hp": 60,
+      "attack": 95,
+      "defense": 69,
+      "special-attack": 65,
+      "special-defense": 79,
+      "speed": 80
+    }
+  },
+  {
+    "id": 126,
+    "species": "MAGMAR",
+    "stats": {
+      "hp": 65,
+      "attack": 95,
+      "defense": 57,
+      "special-attack": 100,
+      "special-defense": 85,
+      "speed": 93
+    }
+  }
+]

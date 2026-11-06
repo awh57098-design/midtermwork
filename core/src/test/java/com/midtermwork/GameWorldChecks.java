@@ -7,7 +7,7 @@ public final class GameWorldChecks {
     private void tick(GameWorld w,int frames,float move,boolean attack) { for(int i=0;i<frames;i++)w.step(1f/60f,move,false,attack); }
     private GameWorld quiet() { GameWorld w=new GameWorld();w.enemies.clear();if(w.boss!=null)w.boss.hp=0;return w; }
     @Test public void movementJumpAndPause() {
-        GameWorld w=quiet();tick(w,30,1,false);assertEquals(218,w.x,.1f);
+        GameWorld w=quiet();tick(w,30,1,false);assertEquals(209.333f,w.x,.1f);
         w.step(1f/60f,0,true,false);assertTrue(w.y>112);float vy=w.vy;
         w.step(1f/60f,0,true,false);assertTrue(w.vy<vy);
         tick(w,100,0,false);assertTrue(w.grounded);assertEquals(112,w.y,.01f);
@@ -15,11 +15,11 @@ public final class GameWorldChecks {
     }
     @Test public void accelerationBrakingAndReversalAreGradual() {
         GameWorld w=quiet();w.step(1f/60f,1,false,false);assertTrue(w.vx>0&&w.vx<260);
-        tick(w,12,1,false);assertEquals(260,w.vx,.01f);float before=w.x;
+        tick(w,12,1,false);assertEquals(w.movementSpeed(),w.vx,.01f);float before=w.x;
         w.step(1f/60f,0,false,false);assertTrue(w.vx>0&&w.vx<260);
         tick(w,10,0,false);assertEquals(0,w.vx,.01f);assertTrue(w.x-before<13);
         tick(w,15,1,false);w.step(1f/60f,-1,false,false);assertTrue(w.vx>0);
-        tick(w,14,-1,false);assertEquals(-260,w.vx,.01f);
+        tick(w,14,-1,false);assertEquals(-w.movementSpeed(),w.vx,.01f);
     }
     @Test public void hitStopFreezesBodiesAndPauseFreezesEffects() {
         GameWorld w=quiet();w.damage(1,500);float x=w.x;
@@ -55,8 +55,8 @@ public final class GameWorldChecks {
         GameWorld w=new GameWorld();GameWorld.Enemy e=w.enemies.get(0);w.enemies.clear();w.enemies.add(e);
         w.x=390;e.x=450;e.phase=GameWorld.Phase.RECOVER;e.timer=10;
         w.step(1f/60f,0,false,true);tick(w,16,0,false);
-        assertEquals(26,e.hp);tick(w,10,0,false);assertEquals(26,e.hp);
-        tick(w,35,0,true);assertFalse(e.alive());assertEquals(25,w.xp);assertEquals(1,w.kills);
+        assertEquals(4,e.hp);tick(w,10,0,false);assertEquals(4,e.hp);
+        tick(w,75,0,true);assertFalse(e.alive());assertEquals(25,w.xp);assertEquals(1,w.kills);
         tick(w,90,0,true);assertEquals(25,w.xp);assertFalse(w.cleared);
     }
     @Test public void projectileCanBeDodgedAndDealsOneAndHalfHearts() {
