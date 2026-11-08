@@ -5,13 +5,13 @@ import static org.junit.Assert.*;
 
 public final class StageChecks {
     private void tick(GameWorld w,int frames){for(int i=0;i<frames;i++)w.step(1f/60f,0,false,false);}
-    private GameWorld cave(){GameWorld w=new GameWorld();while(w.stage<2){if(w.boss!=null)w.boss.hp=0;w.x=w.exitX()+2;w.step(1f/60f,0,false,false);assertTrue(w.advanceStage());}return w;}
+    private GameWorld cave(){GameWorld w=new GameWorld();while(w.stage<2){if(w.boss!=null)w.boss.hp=0;w.x=w.exitX()+2;w.step(1f/60f,0,false,false);TestWorlds.claimRewards(w);assertTrue(w.advanceStage());}return w;}
     @Test public void forestTransitionsOnceAndPreservesProgress(){
         GameWorld w=new GameWorld();TestWorlds.legacy(w);w.addExperience(180);GameWorld.Enemy first=w.enemies.get(0);first.hp=1;first.burnTime=1;first.burnTick=0;tick(w,1);
         int level=w.level,xp=w.xp,total=w.totalKills;w.hp=3;w.x=4382;w.step(1f/60f,0,false,false);
         assertTrue(w.stageComplete);assertFalse(w.cleared);assertFalse(w.trySkill(0));
         w.paused=true;float timer=w.transitionTime;tick(w,180);assertEquals(timer,w.transitionTime,0);assertEquals(1,w.stage);
-        w.paused=false;tick(w,115);assertEquals(1,w.stage);assertEquals(2,w.mapIndex);assertFalse(w.stageComplete);assertFalse(w.cleared);
+        w.paused=false;assertTrue(w.choosingReward());TestWorlds.claimRewards(w);tick(w,115);assertEquals(1,w.stage);assertEquals(2,w.mapIndex);assertFalse(w.stageComplete);assertFalse(w.cleared);
         assertEquals(level,w.level);assertEquals(xp,w.xp);assertEquals(total,w.totalKills);assertTrue(w.skillUnlocked(3));assertEquals(w.maxHp,w.hp);assertEquals(100,w.x,.01f);assertEquals(0,w.kills);
         assertFalse(w.advanceStage());
     }
@@ -49,6 +49,6 @@ public final class StageChecks {
         walk(w,1120);jump(w,1200,210);walk(w,1270);jump(w,1370,300);walk(w,1440);jump(w,1540,385);walk(w,1630);jump(w,1750,300);walk(w,1820);jump(w,1940,205);walk(w,2060);jump(w,2200,112);
         walk(w,2390);jump(w,2490,215);walk(w,2630);jump(w,2720,112);walk(w,2820);jump(w,2900,200);walk(w,2960);jump(w,3070,290);walk(w,3130);jump(w,3240,200);walk(w,3300);jump(w,3400,112);
         walk(w,3800);jump(w,3910,215);walk(w,4050);jump(w,4160,112);walk(w,4370);for(int i=0;i<15;i++)w.step(1f/60f,1,false,false);
-        assertTrue(w.stageComplete);assertFalse(w.cleared);assertEquals(6,w.hp);assertTrue(w.advanceStage());assertEquals(2,w.stage);assertEquals(2,w.mapIndex);
+        assertTrue(w.stageComplete);assertFalse(w.cleared);assertEquals(6,w.hp);TestWorlds.claimRewards(w);assertTrue(w.advanceStage());assertEquals(2,w.stage);assertEquals(2,w.mapIndex);
     }
 }

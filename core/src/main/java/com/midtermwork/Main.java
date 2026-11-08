@@ -36,6 +36,8 @@ public class Main extends ApplicationAdapter {
     private OrthographicCamera camera,hud;
     private FitViewport viewport,hudViewport;
     private GameWorld world;
+    private GameAudio audio;
+    private SkillBindings bindings;private boolean keySettingsOpen,bindingCaptureHandled;private int bindingSlot=-1;private String bindingNotice="";
     private float time,pointerHudX,pointerHudY;
     private int tmPage,tmScroll;
     private final java.util.List<MenuButton> menuButtons=new java.util.ArrayList<>();
@@ -81,29 +83,37 @@ public class Main extends ApplicationAdapter {
         camera=new OrthographicCamera(); viewport=new FitViewport(VIEW_W,VIEW_H,camera);
         viewport.update(Gdx.graphics.getWidth(),Gdx.graphics.getHeight(),false);
         hud=new OrthographicCamera(VIEW_W,VIEW_H); hud.position.set(VIEW_W/2,VIEW_H/2,0); hud.update();hudViewport=new FitViewport(VIEW_W,VIEW_H,hud);hudViewport.update(Gdx.graphics.getWidth(),Gdx.graphics.getHeight(),true);
-        world=new GameWorld();environment=new ForestEnvironment();caveEnvironment=new ForestEnvironment("cave");volcanoEnvironment=new ForestEnvironment("volcano");
+        world=new GameWorld();audio=new GameAudio();bindings=new SkillBindings(Gdx.app.getPreferences("midtermwork.controls"));environment=new ForestEnvironment();caveEnvironment=new ForestEnvironment("cave");volcanoEnvironment=new ForestEnvironment("volcano");
         heroAnimation=new CreatureAnimation("0004",78);ratAnimation=new CreatureAnimation("0019",65);snakeAnimation=new CreatureAnimation("0023",80);
-        Gdx.input.setInputProcessor(new com.badlogic.gdx.InputAdapter(){@Override public boolean scrolled(float x,float y){if(!world.tmSelecting)return false;tmScroll+=(int)Math.signum(y);return true;}});
+        Gdx.input.setInputProcessor(new com.badlogic.gdx.InputAdapter(){
+            @Override public boolean keyDown(int key){if(!keySettingsOpen||bindingSlot<0)return false;bindingCaptureHandled=true;if(key==Input.Keys.ESCAPE){bindingSlot=-1;bindingNotice="키 변경을 취소했습니다.";}else if(bindings.bind(bindingSlot,key)){bindingSlot=-1;bindingNotice="저장했습니다. 같은 키가 있으면 서로 교환됩니다.";}else bindingNotice="이동과 메뉴 조작에 쓰는 키입니다. 다른 키를 눌러주세요.";return true;}
+            @Override public boolean scrolled(float x,float y){if(!world.tmSelecting&&!world.recalling)return false;tmScroll+=(int)Math.signum(y);return true;}});
         bossAnimations=new CreatureAnimation[]{new CreatureAnimation("0020",110),new CreatureAnimation("0024",130),new CreatureAnimation("0126",125)};
     }
     @Override public void render() {
         float dt=Math.min(Gdx.graphics.getDeltaTime(),1f/30f);
-        if(!world.paused&&world.hp>0&&!world.cleared&&!world.choosingSkill())time+=dt;
+        if(!world.paused&&world.hp>0&&!world.cleared&&!world.choosingSkill()&&!world.choosingReward()&&!keySettingsOpen)time+=dt;
         updatePointer();
+        if(Gdx.input.isKeyJustPressed(Input.Keys.F8)&&bindingSlot<0&&!bindingCaptureHandled)audio.toggle();
+        if(Gdx.input.isKeyJustPressed(Input.Keys.F2)&&bindingSlot<0&&!bindingCaptureHandled){keySettingsOpen=!keySettingsOpen;bindingNotice="";menuButtons.clear();}
         boolean selecting=world.choosingSkill();
-        if(selecting)handleLearningInput();
+        if(keySettingsOpen)handleBindingsInput();
+        else if(world.choosingReward())handleRewardInput();
+        else if(selecting)handleLearningInput();
         else{
             tmScroll=0;
-            if(Gdx.input.isKeyJustPressed(Input.Keys.R)){world.restart();cameraX=VIEW_W/2;}
+            if(restartPressed()){world.restart();cameraX=VIEW_W/2;}
             if(Gdx.input.isKeyJustPressed(Input.Keys.ENTER)){if(world.hp<=0)world.retryStage();else world.advanceStage();}
             if(Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE))world.paused=!world.paused;
             if(Gdx.input.isKeyJustPressed(Input.Keys.T)){tmPage=0;world.openTm();}
+            if(Gdx.input.isKeyJustPressed(Input.Keys.K)){tmPage=0;world.openRecall();}
             float move=(Gdx.input.isKeyPressed(Input.Keys.RIGHT)?1:0)-(Gdx.input.isKeyPressed(Input.Keys.LEFT)?1:0);
-            int[] keys={Input.Keys.X,Input.Keys.C,Input.Keys.A,Input.Keys.S};for(int i=0;i<4;i++)if(Gdx.input.isKeyJustPressed(keys[i]))world.trySkill(i);
+            for(int i=0;i<4;i++)if(Gdx.input.isKeyJustPressed(bindings.key(i)))world.trySkill(i);
             boolean jump=Gdx.input.isKeyJustPressed(Input.Keys.SPACE);
             boolean dropped=jump&&Gdx.input.isKeyPressed(Input.Keys.DOWN)&&world.dropThrough();
             world.step(dt,move,jump&&!dropped,held(Input.Keys.J,Input.Keys.Z));
         }
+        audio.update(world);
         if(displayedStage!=world.areaNumber()){cameraX=VIEW_W/2;displayedStage=world.areaNumber();}
         float target=MathUtils.clamp(world.x+190,VIEW_W/2,world.worldWidth()-VIEW_W/2);
         if(Math.abs(cameraX-target)>650)cameraX=target;else if(!world.paused)cameraX=MathUtils.lerp(cameraX,target,1-(float)Math.exp(-7*dt));
@@ -111,7 +121,7 @@ public class Main extends ApplicationAdapter {
         camera.position.set(cameraX+MathUtils.sin(time*117)*shake,VIEW_H/2+MathUtils.cos(time*97)*shake*.55f,0);
         camera.update(); viewport.apply(false);
         ScreenUtils.clear(.025f,.045f,.055f,1);
-        drawWorld();drawHud();updatePointer();if(world.choosingSkill())drawLearningMenu();else{menuButtons.clear();if(hoveredSkillSlot>=0)drawSkillTooltip();else drawItemTooltip();}drawPointer();
+        drawWorld();drawHud();updatePointer();if(keySettingsOpen)drawBindingsMenu();else if(world.choosingReward())drawRewardMenu();else if(world.choosingSkill())drawLearningMenu();else{menuButtons.clear();if(hoveredSkillSlot>=0)drawSkillTooltip();else drawItemTooltip();}drawPointer();
         // Optional framebuffer capture used for local desktop verification.
         String capture=System.getProperty("midtermwork.capture");
         if(capture!=null&&!captured&&time>2) {
@@ -121,6 +131,8 @@ public class Main extends ApplicationAdapter {
             Gdx.app.log("midtermwork","Desktop render verified; capture saved."); Gdx.app.exit();
         }
     }
+    private String restartLabel(){return bindings.uses(Input.Keys.R)?"Ctrl+R":"R";}
+    private boolean restartPressed(){return Gdx.input.isKeyJustPressed(Input.Keys.R)&&(!bindings.uses(Input.Keys.R)||Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)||Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT));}
     private boolean held(int a,int b) { return Gdx.input.isKeyPressed(a)||Gdx.input.isKeyPressed(b); }
     private void drawWorld() {
         Gdx.gl.glEnable(com.badlogic.gdx.graphics.GL20.GL_BLEND);
@@ -180,11 +192,12 @@ public class Main extends ApplicationAdapter {
             (e.boss?bossAnimations[world.stage-1]:e.spitter?snakeAnimation:ratAnimation).draw(batch,action,clock,progress,loop,e.dir,e.x+e.width()/2,e.y,sx,sy,rotation);
             text("Lv."+e.level+" "+e.typeLabel(),e.x+1,e.y+e.height()+80,.85f,typeColor(e.primaryType));
             text("약점 "+e.weaknesses(),e.x+1,e.y+e.height()+60,.65f,Color.WHITE);
-            if(e.matchupTime>0)text(e.combatNote,e.x-3,e.y+e.height()+135,.9f,e.lastEffectiveness>=2?Color.GOLD:e.lastEffectiveness<1?Color.LIGHT_GRAY:Color.WHITE);
+
             String state=e.paralysisTime>0?"마비":e.trapTime>0?"구속":e.flinchTime>0?"풀죽음":e.smoked>0?"연막":e.slowTime>0?"둔화":e.burnTime>0?"화상":e.phase==GameWorld.Phase.WINDUP?"!":e.phase==GameWorld.Phase.ATTACK?(e.spitter?"독 발사":"돌진"):e.phase==GameWorld.Phase.RECOVER?"빈틈":"";
             if(e.boss&&(e.phase==GameWorld.Phase.WINDUP||e.phase==GameWorld.Phase.ATTACK))state=world.bossMoveName();
             if(!state.isEmpty())text(state,e.x-3,e.y+e.height()+110,.9f,e.phase==GameWorld.Phase.RECOVER?Color.SKY:Color.GOLD);
         }
+        drawCombatTexts();
         float alpha=(world.invulnerable>0||world.dashInvulnerable())&&(int)(time*16)%2==0?.48f:1;
         batch.setColor(1,1,1,alpha);
         if(world.evolution==0) {
@@ -201,7 +214,16 @@ public class Main extends ApplicationAdapter {
         } else drawSprite(playerSprites[world.evolution],world.x,world.y,GameWorld.PLAYER_W,world.facing>0,0);
         batch.setColor(Color.WHITE); batch.end();
     }
+    private void drawCombatTexts(){
+        for(GameWorld.CombatText fx:world.combatTexts){float p=fx.age/fx.life,scale=1f+.18f*Math.max(0,1-p*5);Color color;
+            switch(fx.kind){case COUNTER:color=Color.GOLD;break;case CRITICAL:color=Color.PINK;break;case GUARDED:case IMMUNE:color=Color.LIGHT_GRAY;break;case WEAKNESS:color=Color.ORANGE;break;case RESISTED:color=Color.SKY;break;case HURT:color=Color.SCARLET;break;case WARNING:color=Color.YELLOW;break;default:color=Color.WHITE;}
+            font.getData().setScale(scale);com.badlogic.gdx.graphics.g2d.GlyphLayout size=new com.badlogic.gdx.graphics.g2d.GlyphLayout(font,fx.label);float left=camera.position.x-VIEW_W/2+12,right=camera.position.x+VIEW_W/2-size.width-12;float xx=MathUtils.clamp(fx.x-size.width/2,left,Math.max(left,right)),yy=Math.min(584,fx.y+p*35);float alpha=Math.min(1,(1-p)*4);
+            text(fx.label,xx+2,yy-2,scale,new Color(0,0,0,alpha));text(fx.label,xx,yy,scale,new Color(color.r,color.g,color.b,alpha));
+        }
+    }
     private void drawSkills() {
+        for(GameWorld.BuildEffect fx:world.buildEffects){float p=fx.age/fx.life;if(fx.trail){shapes.setColor(1,.3f,.04f,(1-p)*.85f);for(int i=0;i<6;i++){float x=fx.x+i*fx.w/6;shapes.triangle(x,fx.y,x+fx.w/6,fx.y,x+fx.w/12,fx.y+fx.h*(.7f+.3f*MathUtils.sin(time*18+i)));}}else{float cx=fx.x+fx.w/2,cy=fx.y+fx.h/2,r=fx.w/2;shapes.setColor(1,.35f,.06f,(1-p)*.6f);shapes.circle(cx,cy,r*(.6f+.4f*p),32);shapes.setColor(1,.9f,.3f,1-p);for(int i=0;i<20;i++){float a=i*MathUtils.PI2/20;float rr=r*(.6f+.4f*p);shapes.rectLine(cx+MathUtils.cos(a)*rr*.8f,cy+MathUtils.sin(a)*rr*.8f,cx+MathUtils.cos(a)*(rr+9),cy+MathUtils.sin(a)*(rr+9),4*(1-p)+1);}}}
+
         if(world.dashing()){
             boolean fire=world.dashSkill().element==GameWorld.Element.FIRE;
             for(int i=4;i>=0;i--){shapes.setColor(fire?1:.8f,fire?.4f:.9f,fire?.08f:1,.8f-i*.12f);shapes.ellipse(world.x+7-world.facing*i*13,world.y+8,31+i*3,58-i*5,16);}
@@ -261,7 +283,7 @@ public class Main extends ApplicationAdapter {
             shapes.setColor(unlocked?typeColor(world.skillElement(skill)):Color.DARK_GRAY);
             shapes.rect(sx,9,35,49);
             shapes.setColor(unlocked?typeColor(world.skillElement(skill)):Color.DARK_GRAY);
-            float ready=unlocked?1-world.skillCooldowns[i]/((skill==null?1:skill.cooldown)*world.cooldownScale()):0;
+            float ready=unlocked&&world.skillReady(i)?1:unlocked?1-world.skillCooldowns[i]/((skill==null?1:skill.cooldown)*world.cooldownScale()):0;
             shapes.rect(sx+40,12,241*MathUtils.clamp(ready,0,1),3);
         }
     }
@@ -284,9 +306,9 @@ public class Main extends ApplicationAdapter {
         }
         drawSkillSlots();
         shapes.end(); batch.setProjectionMatrix(hud.combined); batch.begin();
-        if(world.bossActive&&!world.bossDefeated()){text("보스 Lv."+world.boss.level+" / "+world.bossName()+" ["+world.boss.typeLabel()+"]   "+world.boss.hp+" / "+world.boss.maxHp,342,582,1.15f,Color.WHITE);text("약점 "+world.boss.weaknesses()+" / HP 10배 / 방어와 특방 3배",342,539,.85f,Color.GOLD);}
+        if(world.bossActive&&!world.bossDefeated()){text("보스 Lv."+world.boss.level+" / "+world.bossName()+" ["+world.boss.typeLabel()+"]   "+world.boss.hp+" / "+world.boss.maxHp,342,582,1.15f,Color.WHITE);text("약점 "+world.boss.weaknesses()+" / HP "+world.boss.hpScale()+"배 / 방어와 특방 "+world.boss.defenseScale()+"배",342,539,.85f,Color.GOLD);}
         text("보유 도구 / 마우스를 올려 효과 확인",26,705,.9f,Color.GOLD);
-        text("T 기술머신 "+world.itemCount(GameWorld.Item.TM),330,705,.85f,Color.SKY);
+        text("T 기술머신 "+world.itemCount(GameWorld.Item.TM)+" / K 기술목록",300,705,.75f,Color.SKY);
         renderedIcons.clear();skillRegions.clear();
         Gdx.gl.glGetIntegerv(com.badlogic.gdx.graphics.GL20.GL_VIEWPORT,actualViewport);
         int itemSlot=0;
@@ -305,6 +327,7 @@ public class Main extends ApplicationAdapter {
         }
         if(itemSlot==0)text("적을 처치하면 도구가 나옵니다!",28,663,.95f,Color.LIGHT_GRAY);
         if(world.itemNoticeTime>0&&!world.choosingSkill())text(world.itemNotice,35,530,1.1f,Color.GOLD);
+        text("변형 / 불꽃 "+world.buildRank(GameWorld.BuildPath.FIRE)+" / 돌진 "+world.buildRank(GameWorld.BuildPath.DASH)+" / 드래곤 "+world.buildRank(GameWorld.BuildPath.DRAGON),26,614,.7f,Color.SKY);
         text(world.species()+(world.candyLevelBonus()>0?" (사탕+"+world.candyLevelBonus()+")":""),520,693,1.65f,Color.WHITE);
         text("하트  "+(world.hp/2f)+" / "+(world.maxHp/2),520,661,1.05f,Color.WHITE);
         text("Lv."+world.level+"   경험치 "+world.xp+" / "+world.xpRequired(),760,651,1.05f,Color.WHITE);
@@ -315,13 +338,14 @@ public class Main extends ApplicationAdapter {
         if(world.statTime>0){text("공격 "+world.attackStage+" / 특공 "+world.specialAttackStage+" / 속도 "+world.speedStage,520,615,.65f,Color.SKY);}
         text(world.stageLabel(),870,701,1.25f,Color.WHITE);
         text(world.mapTitle()+"  |  구역 "+world.areaNumber()+" / 15 / 적 Lv."+world.enemyLevel(),870,674,.9f,new Color(.7f,.85f,.77f,1));
-        text("방향키 이동   Space 점프   ↓+Space 발판 내려가기   J/Z 공격   X C A S 기술   Esc 일시정지   T 기술머신   R 처음부터",30,79,.95f,Color.WHITE);
+        text("방향키 이동  Space 점프  ↓+Space 내려가기  J/Z 평타  "+bindings.compact()+" 기술  K 기술목록  F2 키설정  Esc 일시정지  "+restartLabel()+" 처음부터",30,79,.8f,Color.WHITE);
+        text("F8 소리 "+(!audio.available()?"없음":audio.muted()?"끔":"켬"),1120,79,.8f,Color.LIGHT_GRAY);
         for(int i=0;i<4;i++){GameWorld.Skill skill=world.skillAt(i);float sx=30+i*306;
             Color tint=world.skillUnlocked(i)?Color.WHITE:Color.GRAY;
-            text(GameWorld.SLOT_KEYS[i],sx+10,45,1.5f,skill==null?Color.GRAY:keyTextColor(world.skillElement(skill)));text(skill==null?"빈 기술칸":skill.name,sx+45,49,1.0f,tint);
+            text(bindings.label(i),sx+5,45,bindings.label(i).length()>2?.65f:bindings.label(i).length()>1?1f:1.5f,skill==null?Color.GRAY:keyTextColor(world.skillElement(skill)));text(skill==null?"빈 기술칸":skill.name,sx+45,49,1.0f,tint);
             if(skill!=null){text(world.skillElement(skill).title,sx+205,49,.8f,typeColor(world.skillElement(skill)));text(skill.category.title,sx+128,28,.78f,Color.LIGHT_GRAY);text("피해 "+world.skillDamage(skill),sx+204,28,.75f,Color.LIGHT_GRAY);}
-            String status=!world.skillUnlocked(i)?"기술 습득 시 선택":world.skillCooldowns[i]>.05f?String.format(java.util.Locale.ROOT,"%.1f초",world.skillCooldowns[i]):"사용 가능";
-            text(status,sx+45,28,.9f,world.skillUnlocked(i)&&world.skillCooldowns[i]<=.05f?Color.GOLD:tint);
+            String status=world.skillCharges(i)>=0?"충전 "+world.skillCharges(i)+"/2":!world.skillUnlocked(i)?"기술 습득 시 선택":world.skillCooldowns[i]>.05f?String.format(java.util.Locale.ROOT,"%.1f초",world.skillCooldowns[i]):"사용 가능";
+            text(status,sx+45,28,.9f,world.skillReady(i)?Color.GOLD:tint);
             skillRegions.add(new SkillRegion(i,projectRect(sx,9,288,49)));
         }
         if(world.messageTime>0&&!world.choosingSkill()&&!world.cleared&&!world.stageComplete&&!world.bossActive&&world.hp>0) text(world.message,35,568,1.1f,world.stage>=2?Color.WHITE:new Color(.08f,.22f,.23f,1));
@@ -332,7 +356,7 @@ public class Main extends ApplicationAdapter {
             shapes.begin(ShapeRenderer.ShapeType.Filled); shapes.setColor(.03f,.10f,.13f,.88f); shapes.rect(250,245,780,230); shapes.end();
             Gdx.gl.glDisable(com.badlogic.gdx.graphics.GL20.GL_BLEND); batch.begin();
             text(world.hp<=0?"쓰러짐":world.paused?"일시정지":world.stageComplete?"구역 완료!":"모험 완료!",330,407,2.2f,Color.WHITE);
-            text(world.paused?"Esc: 계속하기 / R: 처음부터":world.hp<=0?"Enter: 이 맵 재도전 / R: 새 모험":world.stageComplete?("다음: "+world.nextAreaLabel()+" / Enter로 이동"):"보스 3마리 격파! R: 처음부터",330,347,1.25f,Color.WHITE);
+            text(world.paused?"Esc: 계속하기 / "+restartLabel()+": 처음부터":world.hp<=0?"Enter: 이 맵 재도전 / "+restartLabel()+": 새 모험":world.stageComplete?("다음: "+world.nextAreaLabel()+" / Enter로 이동"):"보스 3마리 격파! "+restartLabel()+": 처음부터",330,347,1.25f,Color.WHITE);
             text("Lv."+world.level+"    |    처치한 적 "+world.totalKills+"마리",360,300,1.2f,Color.GOLD); batch.end();
         }
     }
@@ -347,20 +371,52 @@ public class Main extends ApplicationAdapter {
         for(ItemHud.RenderedIcon icon:renderedIcons)if(icon.contains(pointerPixelX,pointerPixelY)){hoveredTool=icon.item;break;}
         for(SkillRegion region:skillRegions)if(region.rect.contains(pointerPixelX,pointerPixelY)){hoveredSkillSlot=region.slot;break;}
     }
-    private int tmPages(){return Math.max(1,(world.tmOptions().size()+6)/7);}
+    private void handleBindingsInput(){
+        if(bindingCaptureHandled){bindingCaptureHandled=false;return;}if(bindingSlot>=0)return;
+        if(Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)){keySettingsOpen=false;menuButtons.clear();return;}
+        for(int i=0;i<4;i++)if(Gdx.input.isKeyJustPressed(Input.Keys.NUM_1+i)){bindingSlot=i;bindingNotice="바꿀 키를 누르세요. Esc는 취소입니다.";return;}
+        if(Gdx.input.isButtonJustPressed(Input.Buttons.LEFT))for(MenuButton button:menuButtons)if(button.rect.contains(pointerPixelX,pointerPixelY)){if(button.action==20){bindingSlot=button.index;bindingNotice="바꿀 키를 누르세요. Esc는 취소입니다.";}else if(button.action==21){keySettingsOpen=false;menuButtons.clear();}else{bindings.reset();bindingNotice="기본 배치 X C A S로 저장했습니다.";}return;}
+    }
+    private void drawBindingsMenu(){
+        hudViewport.apply();Gdx.gl.glGetIntegerv(com.badlogic.gdx.graphics.GL20.GL_VIEWPORT,actualViewport);menuButtons.clear();shapes.setProjectionMatrix(hud.combined);shapes.begin(ShapeRenderer.ShapeType.Filled);shapes.setColor(.03f,.08f,.12f,1);shapes.rect(180,115,920,480);shapes.setColor(Color.GOLD);shapes.rect(180,592,920,3);
+        for(int i=0;i<4;i++)menuButton(220,435-i*63,840,51,20,i);menuButton(220,140,390,38,22,0);menuButton(670,140,390,38,21,0);shapes.end();batch.setProjectionMatrix(hud.combined);batch.begin();batch.setColor(Color.WHITE);
+        text("기술 키 설정",220,563,1.6f,Color.GOLD);text("숫자 1~4 또는 칸 클릭 > 새 키 입력 / 자동 저장",220,526,1.05f,Color.WHITE);
+        for(int i=0;i<4;i++){float y=470-i*63;GameWorld.Skill skill=world.skillAt(i);text((i+1)+"번 기술 / "+(skill==null?"빈 기술칸":skill.name),240,y,1.1f,Color.WHITE);text(bindingSlot==i?"새 키를 누르세요":bindings.label(i),770,y,1.2f,bindingSlot==i?Color.GOLD:Color.SKY);}
+        font.getData().setScale(.8f);font.setColor(Color.LIGHT_GRAY);font.draw(batch,bindingNotice.isEmpty()?"이동·점프·평타·메뉴 키와 숫자는 사용할 수 없습니다. 이미 쓰는 기술 키는 교환합니다. R을 기술에 쓰면 재시작은 Ctrl+R입니다.":bindingNotice,220,222,840,com.badlogic.gdx.utils.Align.left,true);
+        text("기본값 복원",340,166,1.05f,Color.WHITE);text("닫기 / Esc / F2",790,166,1.05f,Color.WHITE);batch.end();
+    }
+    private void handleRewardInput(){
+        if(restartPressed()){world.restart();cameraX=VIEW_W/2;return;}
+        for(int i=0;i<3;i++)if(Gdx.input.isKeyJustPressed(Input.Keys.NUM_1+i)){selectReward(i);return;}
+        if(Gdx.input.isButtonJustPressed(Input.Buttons.LEFT))for(MenuButton button:menuButtons)if(button.rect.contains(pointerPixelX,pointerPixelY)){selectReward(button.index);return;}
+    }
+    private void selectReward(int index){if(world.choosingBuildReward())world.chooseBuildReward(GameWorld.BuildPath.values()[index]);else world.chooseItemReward(index);menuButtons.clear();}
+    private void drawRewardMenu(){
+        hudViewport.apply();Gdx.gl.glGetIntegerv(com.badlogic.gdx.graphics.GL20.GL_VIEWPORT,actualViewport);menuButtons.clear();boolean build=world.choosingBuildReward();
+        shapes.setProjectionMatrix(hud.combined);shapes.begin(ShapeRenderer.ShapeType.Filled);shapes.setColor(.025f,.06f,.1f,1);shapes.rect(75,130,1130,470);shapes.setColor(Color.GOLD);shapes.rect(75,597,1130,3);
+        for(int i=0;i<3;i++){float x=110+i*360;menuButton(x,195,340,290,10,i);Color c=build?typeColor(i==0?GameWorld.Element.FIRE:i==1?GameWorld.Element.FIGHTING:GameWorld.Element.DRAGON):Color.GOLD;shapes.setColor(c);shapes.rect(x,481,340,4);if(build){float cx=x+170,cy=385;if(i==0)for(int j=-1;j<=1;j++)shapes.triangle(cx+j*18-10,cy-22,cx+j*18+10,cy-22,cx+j*18,cy+26-Math.abs(j)*10);else if(i==1){for(int j=0;j<3;j++)shapes.rectLine(cx-45,cy-15+j*15,cx+20,cy-15+j*15,4);shapes.triangle(cx+15,cy-26,cx+43,cy,cx+15,cy+26);}else for(int j=-1;j<=1;j++)shapes.circle(cx+j*30,cy+j*12,12,16);}}
+        shapes.end();batch.setProjectionMatrix(hud.combined);batch.begin();batch.setColor(Color.WHITE);
+        text(build?"보스 격파! 기술 변형 선택":"구역 클리어! 도구 하나 선택",110,565,1.65f,Color.GOLD);
+        text(build?"보스 보상 1/2 / 한 계열을 선택하세요. 같은 계열은 최대 3단계.":"공격 강화 도구가 하나 이상 보장됩니다. 선택하면 보유 효과에 즉시 합산됩니다.",110,525,1f,Color.WHITE);
+        for(int i=0;i<3;i++){float x=110+i*360;String description;if(build){GameWorld.BuildPath path=GameWorld.BuildPath.values()[i];text((i+1)+". "+path.title,x+20,460,1.35f,Color.WHITE);text("현재 "+world.buildRank(path)+"단계 > "+Math.min(3,world.buildRank(path)+1)+"단계",x+20,428,1f,Color.GOLD);description=world.buildDescription(path);}else{GameWorld.Item item=world.rewardItem(i);text((i+1)+". "+item.title,x+20,460,1.25f,Color.WHITE);text(item.tier+"티어 / 보유 "+world.itemCount(item)+" > "+(world.itemCount(item)+1),x+20,428,1f,Color.GOLD);batch.draw(itemSprites[item.ordinal()],x+138,352,64,64);description=world.rewardDescription(item);}font.getData().setScale(1f);font.setColor(Color.LIGHT_GRAY);font.draw(batch,description,x+20,335,300,com.badlogic.gdx.utils.Align.left,true);}
+        text("숫자 1 / 2 / 3 또는 카드 클릭",110,170,1.1f,Color.SKY);text(build?"선택 후 도구 보상으로 이어집니다.":world.stage==3&&world.isBossRoom()?"선택 후 최종 결과를 확인합니다.":"선택 후 다음 구역에서 하트를 회복합니다.",600,170,.95f,Color.WHITE);batch.end();
+    }
+    private java.util.List<GameWorld.Skill> menuMoves(){return world.recalling?world.recallOptions():world.tmOptions();}
+    private void chooseMenuMove(GameWorld.Skill move){if(world.recalling)world.chooseRecall(move);else world.chooseTm(move);}
+    private int tmPages(){return Math.max(1,(menuMoves().size()+6)/7);}
     private void handleLearningInput(){
         if(Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)||Gdx.input.isKeyJustPressed(Input.Keys.NUM_0)){world.skipLearning();return;}
-        if(world.tmSelecting){
+        if(world.tmSelecting||world.recalling){
             if(Gdx.input.isKeyJustPressed(Input.Keys.RIGHT)||Gdx.input.isKeyJustPressed(Input.Keys.PAGE_DOWN)||tmScroll>0)tmPage++;
             if(Gdx.input.isKeyJustPressed(Input.Keys.LEFT)||Gdx.input.isKeyJustPressed(Input.Keys.PAGE_UP)||tmScroll<0)tmPage--;
             tmScroll=0;tmPage=MathUtils.clamp(tmPage,0,tmPages()-1);
-            for(int i=0;i<7;i++)if(Gdx.input.isKeyJustPressed(Input.Keys.NUM_1+i)){java.util.List<GameWorld.Skill> options=world.tmOptions();int index=tmPage*7+i;if(index<options.size())world.chooseTm(options.get(index));return;}
+            for(int i=0;i<7;i++)if(Gdx.input.isKeyJustPressed(Input.Keys.NUM_1+i)){java.util.List<GameWorld.Skill> options=menuMoves();int index=tmPage*7+i;if(index<options.size())chooseMenuMove(options.get(index));return;}
         }else{
-            int[] keys={Input.Keys.X,Input.Keys.C,Input.Keys.A,Input.Keys.S};for(int i=0;i<4;i++)if(Gdx.input.isKeyJustPressed(keys[i])||Gdx.input.isKeyJustPressed(Input.Keys.NUM_1+i)){world.learnInto(i);return;}
+            for(int i=0;i<4;i++)if(Gdx.input.isKeyJustPressed(bindings.key(i))||Gdx.input.isKeyJustPressed(Input.Keys.NUM_1+i)){world.learnInto(i);return;}
         }
         if(Gdx.input.isButtonJustPressed(Input.Buttons.LEFT))for(MenuButton button:menuButtons)if(button.rect.contains(pointerPixelX,pointerPixelY)){
             if(button.action==0)world.learnInto(button.index);
-            else if(button.action==1){java.util.List<GameWorld.Skill> options=world.tmOptions();if(button.index<options.size())world.chooseTm(options.get(button.index));}
+            else if(button.action==1){java.util.List<GameWorld.Skill> options=menuMoves();if(button.index<options.size())chooseMenuMove(options.get(button.index));}
             else if(button.action==2)world.skipLearning();
             else tmPage=MathUtils.clamp(tmPage+(button.action==3?-1:1),0,tmPages()-1);
             return;
@@ -385,29 +441,29 @@ public class Main extends ApplicationAdapter {
         shapes.setProjectionMatrix(hud.combined);shapes.begin(ShapeRenderer.ShapeType.Filled);
         shapes.setColor(.03f,.08f,.12f,1);shapes.rect(180,115,920,480);
         shapes.setColor(.94f,.75f,.3f,1);shapes.rect(180,592,920,3);
-        if(world.tmSelecting){
-            java.util.List<GameWorld.Skill> options=world.tmOptions();for(int row=0;row<7;row++)if(tmPage*7+row<options.size())menuButton(210,466-row*45,860,39,1,tmPage*7+row);
+        if(world.tmSelecting||world.recalling){
+            java.util.List<GameWorld.Skill> options=menuMoves();for(int row=0;row<7;row++)if(tmPage*7+row<options.size())menuButton(210,466-row*45,860,39,1,tmPage*7+row);
             menuButton(210,135,180,32,3,0);menuButton(430,135,400,32,2,0);menuButton(890,135,180,32,4,0);
         }else{
             for(int i=0;i<4;i++)menuButton(210,360-i*57,860,49,0,i);
             menuButton(210,135,860,32,2,0);
         }
         shapes.end();batch.setProjectionMatrix(hud.combined);batch.begin();batch.setColor(Color.WHITE);
-        if(world.tmSelecting){
-            text("기술머신 / 배울 기술 선택",210,565,1.5f,Color.GOLD);
-            text("보유 "+world.itemCount(GameWorld.Item.TM)+"개 / 배운 뒤에만 소모 / 선택 중 전투 정지",210,530,1.0f,Color.WHITE);
-            java.util.List<GameWorld.Skill> options=world.tmOptions();
-            for(int row=0;row<7;row++){int index=tmPage*7+row;if(index>=options.size())break;GameWorld.Skill move=options.get(index);float yy=494-row*45;text((row+1)+". "+move.name,225,yy,1.05f,Color.WHITE);text(skillInfo(move),540,yy,.9f,typeColor(world.skillElement(move)));}
-            if(options.isEmpty())text("배울 수 있는 기술머신 기술을 모두 장착했습니다.",220,460,1.1f,Color.WHITE);
+        if(world.tmSelecting||world.recalling){
+            text(world.recalling?"배운 기술 목록 / 무료 재장착":"기술머신 / 배울 기술 선택",210,565,1.5f,Color.GOLD);
+            text(world.recalling?"한 번 배운 기술은 계속 기억합니다. 선택 중 전투 정지 / 남은 쿨다운 유지":"보유 "+world.itemCount(GameWorld.Item.TM)+"개 / 배운 뒤에만 소모 / 선택 중 전투 정지",210,530,1.0f,Color.WHITE);
+            java.util.List<GameWorld.Skill> options=menuMoves();
+            for(int row=0;row<7;row++){int index=tmPage*7+row;if(index>=options.size())break;GameWorld.Skill move=options.get(index);float yy=494-row*45;text((row+1)+". "+move.name+(world.recalling&&world.knows(move)?" [장착중]":""),225,yy,1.05f,Color.WHITE);text(skillInfo(move),540,yy,.9f,typeColor(world.skillElement(move)));}
+            if(options.isEmpty())text("기술머신 기술을 모두 배웠습니다. K 기술목록을 이용하세요.",220,460,1.1f,Color.WHITE);
             text("이전 / 왼쪽",225,157,.95f,Color.WHITE);text("0 / Esc 보관하고 닫기",495,157,.95f,Color.WHITE);text("다음 / 오른쪽",905,157,.95f,Color.WHITE);
             text((tmPage+1)+" / "+tmPages()+" 페이지 / 숫자 1~7 또는 클릭",440,182,.85f,Color.GOLD);
         }else{
             GameWorld.Skill move=world.pendingSkill();
-            text("새 기술: "+move.name,210,565,1.5f,Color.GOLD);text(skillInfo(move),210,530,1.0f,typeColor(world.skillElement(move)));
+            text((world.recallingSelection()?"재장착: ":"새 기술: ")+move.name,210,565,1.5f,Color.GOLD);text(skillInfo(move),210,530,1.0f,typeColor(world.skillElement(move)));
             font.getData().setScale(.95f);font.setColor(Color.LIGHT_GRAY);font.draw(batch,move.description(),210,495,860,com.badlogic.gdx.utils.Align.left,true);
             text("교체하거나 채울 기술칸을 선택하세요",210,435,1.05f,Color.WHITE);
-            for(int i=0;i<4;i++){GameWorld.Skill current=world.skillAt(i);float yy=394-i*57;text((i+1)+" / "+GameWorld.SLOT_KEYS[i]+"   "+(current==null?"빈 기술칸":current.name),225,yy,1.1f,current==null?Color.SKY:Color.WHITE);if(current!=null)text(skillInfo(current),540,yy,.85f,Color.LIGHT_GRAY);}
-            text("0 / Esc: 배우지 않기 / 기술머신은 소모되지 않습니다",295,157,.95f,Color.WHITE);
+            for(int i=0;i<4;i++){GameWorld.Skill current=world.skillAt(i);float yy=394-i*57;text((i+1)+" / "+bindings.label(i)+"   "+(current==null?"빈 기술칸":current.name),225,yy,1.1f,current==null?Color.SKY:Color.WHITE);if(current!=null)text(skillInfo(current),540,yy,.85f,Color.LIGHT_GRAY);}
+            text(world.recallingSelection()?"0 / Esc 목록으로 / 장착 중인 기술을 고르면 칸을 교환합니다":"0 / Esc: 배우지 않기 / 기술머신은 소모되지 않습니다",230,157,.9f,Color.WHITE);
         }
         batch.end();
     }
@@ -427,12 +483,12 @@ public class Main extends ApplicationAdapter {
     }
     private void drawSkillTooltip(){
         GameWorld.Skill skill=world.skillAt(hoveredSkillSlot);
-        float width=490;String description=skill==null?"":MoveGeometry.summary(skill)+"\n"+skill.description();if(skill!=null&&(MoveEffects.profile(skill).ailment==4||MoveEffects.profile(skill).ailment==8))description+="\n보스에게는 화상과 구속 피해가 크게 감소합니다.";font.getData().setScale(.95f);com.badlogic.gdx.graphics.g2d.GlyphLayout measured=new com.badlogic.gdx.graphics.g2d.GlyphLayout(font,description,Color.LIGHT_GRAY,width-32,com.badlogic.gdx.utils.Align.left,true);float height=Math.max(220,146+measured.height),ix=MathUtils.clamp(pointerHudX+15,8,VIEW_W-width-8),top=Math.min(590,height+100);
+        float width=490;String description=skill==null?"":MoveGeometry.summary(skill)+"\n"+skill.description();if(skill!=null&&!world.activeBuildDescription(skill).isEmpty())description+="\n"+world.activeBuildDescription(skill);if(skill!=null&&(MoveEffects.profile(skill).ailment==4||MoveEffects.profile(skill).ailment==8))description+="\n보스에게는 화상과 구속 피해가 크게 감소합니다.";font.getData().setScale(.95f);com.badlogic.gdx.graphics.g2d.GlyphLayout measured=new com.badlogic.gdx.graphics.g2d.GlyphLayout(font,description,Color.LIGHT_GRAY,width-32,com.badlogic.gdx.utils.Align.left,true);float height=Math.max(220,146+measured.height),ix=MathUtils.clamp(pointerHudX+15,8,VIEW_W-width-8),top=Math.min(590,height+100);
         hudViewport.apply();shapes.setProjectionMatrix(hud.combined);shapes.begin(ShapeRenderer.ShapeType.Filled);
         shapes.setColor(skill==null?Color.GRAY:typeColor(world.skillElement(skill)));shapes.rect(ix,top-height,width,height);
         shapes.setColor(.05f,.09f,.13f,1);shapes.rect(ix+3,top-height+3,width-6,height-6);shapes.end();
         batch.setProjectionMatrix(hud.combined);batch.begin();batch.setColor(Color.WHITE);
-        text("["+GameWorld.SLOT_KEYS[hoveredSkillSlot]+"] "+(skill==null?"빈 기술칸":skill.name),ix+16,top-17,1.25f,Color.GOLD);
+        text("["+bindings.label(hoveredSkillSlot)+"] "+(skill==null?"빈 기술칸":skill.name),ix+16,top-17,1.25f,Color.GOLD);
         if(skill!=null){
             text(world.skillElement(skill).title+" / "+skill.category.title,ix+16,top-52,1f,typeColor(world.skillElement(skill)));
             text("위력 "+(skill==GameWorld.Skill.FLING?"가변":String.valueOf(skill.power))+" / 피해 "+world.skillDamage(skill)+" / 재사용 "+String.format(java.util.Locale.ROOT,"%.2f초",skill.cooldown*world.cooldownScale()),ix+16,top-83,.95f,Color.WHITE);
@@ -465,5 +521,5 @@ public class Main extends ApplicationAdapter {
     @Override public void resize(int width,int height) { if(viewport!=null) viewport.update(width,height,false);if(hudViewport!=null)hudViewport.update(width,height,true); }
     @Override public void pause() {cursorFocused=false;if(cursorHidden){Gdx.graphics.setSystemCursor(com.badlogic.gdx.graphics.Cursor.SystemCursor.Arrow);cursorHidden=false;}if(world!=null)world.paused=true;}
     @Override public void resume(){cursorFocused=true;}
-    @Override public void dispose() { if(cursorHidden)Gdx.graphics.setSystemCursor(com.badlogic.gdx.graphics.Cursor.SystemCursor.Arrow); for(Texture texture:itemTextures)texture.dispose(); environment.dispose();caveEnvironment.dispose();volcanoEnvironment.dispose();for(CreatureAnimation animation:bossAnimations)animation.dispose();heroAnimation.dispose();ratAnimation.dispose();snakeAnimation.dispose();batch.dispose(); shapes.dispose(); font.dispose(); charmander.dispose(); charmeleon.dispose(); charizard.dispose(); rattata.dispose(); ekans.dispose(); }
+    @Override public void dispose() { if(audio!=null)audio.dispose(); if(cursorHidden)Gdx.graphics.setSystemCursor(com.badlogic.gdx.graphics.Cursor.SystemCursor.Arrow); for(Texture texture:itemTextures)texture.dispose(); environment.dispose();caveEnvironment.dispose();volcanoEnvironment.dispose();for(CreatureAnimation animation:bossAnimations)animation.dispose();heroAnimation.dispose();ratAnimation.dispose();snakeAnimation.dispose();batch.dispose(); shapes.dispose(); font.dispose(); charmander.dispose(); charmeleon.dispose(); charizard.dispose(); rattata.dispose(); ekans.dispose(); }
 }

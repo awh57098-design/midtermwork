@@ -54,3 +54,7 @@ PokeAPI의 move_meta 및 move_meta_stat_changes 데이터를 참고했습니다.
 ### 종족치와 기술 시각 효과
 - 종족치: PokeAPI API data, https://github.com/PokeAPI/api-data (pokemon 4, 5, 6, 19, 20, 23, 24, 126). 게임용 데이터: moves/species-stats.json.
 - 새 기술 시각 효과는 ShapeRenderer로 직접 그리는 절차적 도형이며 외부 이펙트 이미지를 사용하지 않습니다.
+
+
+### 전투 효과음
+assets/audio/*.wav 7종은 tools/generate_sfx.py로 직접 합성한 PCM 효과음입니다. 외부 게임 효과음을 복사하지 않았습니다.

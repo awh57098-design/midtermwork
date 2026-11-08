@@ -7,7 +7,7 @@ public final class BossChecks {
   w.step(1f/60f,0,false,false);assertEquals(w.boss.maxHp,w.boss.hp);assertFalse(w.bossActive);
  }
  private void tick(GameWorld w,int n){for(int i=0;i<n;i++)w.step(1f/60f,0,false,false);}
- private GameWorld area(int target,int room){GameWorld w=new GameWorld();while(w.stage<target||w.mapIndex<room){if(w.boss!=null)w.boss.hp=0;w.x=w.exitX()+2;w.step(1f/60f,0,false,false);assertTrue(w.advanceStage());}return w;}
+ private GameWorld area(int target,int room){GameWorld w=new GameWorld();while(w.stage<target||w.mapIndex<room){if(w.boss!=null)w.boss.hp=0;w.x=w.exitX()+2;w.step(1f/60f,0,false,false);TestWorlds.claimRewards(w);assertTrue(w.advanceStage());}return w;}
  private GameWorld stage(int target){return area(target,5);}
  @Test public void bossLocksExitAndCanBeDefeatedWithNormalAttack(){
   GameWorld w=stage(1);w.x=w.exitX()+2;tick(w,1);assertTrue(w.bossActive);assertFalse(w.stageComplete);assertTrue(w.x<w.exitX());
@@ -28,7 +28,7 @@ public final class BossChecks {
   GameWorld w=stage(2);int before=w.level,xp=w.xp;w.addExperience(150);w.hp=0;assertTrue(w.retryStage());assertEquals(2,w.stage);assertEquals(before,w.level);assertEquals(xp,w.xp);assertEquals(w.maxHp,w.hp);assertFalse(w.bossDefeated());assertTrue(w.eruptions.isEmpty());
  }
  @Test public void threeBossesLeadToEndingAndRestart(){
-  GameWorld w=stage(3);assertEquals("불꽃 화산",w.stageName());w.boss.hp=0;w.x=w.exitX()+2;tick(w,1);assertTrue(w.cleared);assertFalse(w.stageComplete);assertFalse(w.advanceStage());w.restart();assertEquals(1,w.stage);assertEquals(1,w.level);assertFalse(w.cleared);assertFalse(w.bossActive);
+  GameWorld w=stage(3);assertEquals("불꽃 화산",w.stageName());w.boss.hp=0;w.x=w.exitX()+2;tick(w,1);TestWorlds.claimRewards(w);assertTrue(w.cleared);assertFalse(w.stageComplete);assertFalse(w.advanceStage());w.restart();assertEquals(1,w.stage);assertEquals(1,w.level);assertFalse(w.cleared);assertFalse(w.bossActive);
  }
  private float move(GameWorld w,float target){float dx=target-w.x,stop=w.vx*w.vx/(2*(w.grounded?3200:1300));return Math.abs(dx)<=Math.max(3,stop)&&dx*w.vx>=0?0:dx>0?1:-1;}
  private void walk(GameWorld w,float target){for(int i=0;i<600;i++){if(Math.abs(w.x-target)<5&&Math.abs(w.vx)<1)break;w.step(1f/60f,move(w,target),false,false);}assertTrue("walk "+target,Math.abs(w.x-target)<8);}

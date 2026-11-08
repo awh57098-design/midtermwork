@@ -3,7 +3,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 public final class CampaignChecks {
  private void tick(GameWorld w,int count){for(int i=0;i<count;i++)w.step(1f/60f,0,false,false);}
- private void complete(GameWorld w){if(w.boss!=null)w.boss.hp=0;w.x=w.exitX()+2;tick(w,1);}
+ private void complete(GameWorld w){if(w.boss!=null)w.boss.hp=0;w.x=w.exitX()+2;tick(w,1);TestWorlds.claimRewards(w);}
  private GameWorld area(int biome,int room){GameWorld w=new GameWorld();while(w.stage<biome||w.mapIndex<room){complete(w);assertTrue(w.advanceStage());}return w;}
  @Test public void campaignVisitsTwelveFullMapsAndThreeSeparateArenas(){
   GameWorld w=new GameWorld();int maps=0,arenas=0;

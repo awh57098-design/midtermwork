@@ -1,0 +1,11 @@
+package com.midtermwork;
+import com.badlogic.gdx.*;
+import org.junit.Test;
+import static org.junit.Assert.*;
+public class SkillBindingsChecks {
+ private Preferences prefs(java.util.Map<String,Integer> data){final Object[] holder=new Object[1];holder[0]=java.lang.reflect.Proxy.newProxyInstance(Preferences.class.getClassLoader(),new Class<?>[]{Preferences.class},(proxy,m,a)->{switch(m.getName()){case "getInteger":return data.getOrDefault((String)a[0],a.length>1?(Integer)a[1]:0);case "putInteger":data.put((String)a[0],(Integer)a[1]);return holder[0];case "flush":return null;case "contains":return data.containsKey((String)a[0]);default:throw new UnsupportedOperationException(m.getName());}});return (Preferences)holder[0];}
+ @Test public void customKeysPersistOnReload(){java.util.Map<String,Integer> data=new java.util.HashMap<>();SkillBindings keys=new SkillBindings(prefs(data));assertTrue(keys.bind(0,Input.Keys.Q));assertTrue(keys.bind(1,Input.Keys.W));assertTrue(keys.bind(2,Input.Keys.E));assertTrue(keys.bind(3,Input.Keys.R));SkillBindings loaded=new SkillBindings(prefs(data));assertEquals(Input.Keys.Q,loaded.key(0));assertEquals(Input.Keys.R,loaded.key(3));assertTrue(loaded.uses(Input.Keys.R));}
+ @Test public void duplicateBindingSwapsAndKeepsAllFourUnique(){SkillBindings keys=new SkillBindings(prefs(new java.util.HashMap<>()));assertTrue(keys.bind(0,Input.Keys.C));assertEquals(Input.Keys.C,keys.key(0));assertEquals(Input.Keys.X,keys.key(1));java.util.Set<Integer> used=new java.util.HashSet<>();for(int i=0;i<4;i++)used.add(keys.key(i));assertEquals(4,used.size());}
+ @Test public void movementMenuAndNumericKeysAreReserved(){SkillBindings keys=new SkillBindings(prefs(new java.util.HashMap<>()));for(int code:new int[]{Input.Keys.SPACE,Input.Keys.LEFT,Input.Keys.NUM_1,Input.Keys.K,Input.Keys.F2,Input.Keys.F8,Input.Keys.J,Input.Keys.ESCAPE})assertFalse(keys.bind(0,code));assertEquals(Input.Keys.X,keys.key(0));}
+ @Test public void invalidSavedKeysFallBackAndDefaultsCanBeRestored(){java.util.Map<String,Integer> data=new java.util.HashMap<>();data.put("skill0",Input.Keys.SPACE);SkillBindings keys=new SkillBindings(prefs(data));assertEquals(Input.Keys.X,keys.key(0));keys.bind(0,Input.Keys.Q);keys.reset();SkillBindings loaded=new SkillBindings(prefs(data));assertEquals("X C A S",loaded.compact());}
+}

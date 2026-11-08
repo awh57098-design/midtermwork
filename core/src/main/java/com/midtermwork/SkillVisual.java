@@ -33,6 +33,7 @@ public final class SkillVisual {
     private static void tint(ShapeRenderer s,GameWorld.Element type,float alpha){int c=type.rgb;s.setColor(((c>>16)&255)/255f,((c>>8)&255)/255f,(c&255)/255f,alpha);}
     public static void projectile(ShapeRenderer s,GameWorld.SkillShot shot,float time){
         float x=shot.x,y=shot.y,d=shot.vx>=0?1:-1,radius=radius(shot.move);Style style=style(shot.move);
+        if(shot.secondary){for(int i=6;i>=0;i--){tint(s,shot.element,1-i*.12f);s.circle(x-shot.vx*.012f*i,y-shot.vy*.012f*i,Math.max(2,8-i*.8f),12);}s.setColor(.9f,.85f,1,1);s.circle(x,y,4,10);return;}
         tint(s,shot.element,.14f);s.circle(x,y,radius(shot.move)+9,24);
         for(int i=0;i<5;i++){float a=time*6+i*1.7f,r=radius(shot.move)+4; tint(s,shot.element,.7f);s.circle(x-d*(i*10)+MathUtils.cos(a)*r*.3f,y+MathUtils.sin(a)*r,2,8);}
         tint(s,shot.element,.9f);

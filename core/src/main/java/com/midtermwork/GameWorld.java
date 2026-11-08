@@ -9,8 +9,7 @@ public final class GameWorld {
     public static final float WIDTH=4500, FLOOR=112, PLAYER_W=44, PLAYER_H=72;
     public static final int CONTACT_DAMAGE=1, TACKLE_DAMAGE=2, SPIT_DAMAGE=3, TRAP_DAMAGE=2;
     public static final float ATTACK_DURATION=.42f;
-    public static final int BOSS_HP_MULTIPLIER=10,BOSS_DEFENSE_MULTIPLIER=3;
-    private static int enemyMaxHp(Enemy e){return e.stats().hp*(e.boss?BOSS_HP_MULTIPLIER:1);}
+    private static int enemyMaxHp(Enemy e){return e.stats().hp*e.hpScale();}
     public void syncEnemyLevels(){
         for(Enemy e:enemies)if(e.alive()&&e.level!=enemyLevel()){float fraction=e.hp/(float)e.maxHp;e.level=enemyLevel();e.maxHp=enemyMaxHp(e);e.hp=Math.min(e.maxHp,Math.max(1,(int)Math.ceil(e.maxHp*fraction)));}
     }
@@ -40,6 +39,59 @@ public final class GameWorld {
     public String bossMoveName(){if(boss==null)return "";String[][] names={{"연속 몸통박치기","충격파","점프 내려찍기"},{"독침 부채꼴","맹독 장판","독니 돌진"},{"화염탄 연사","추적 불기둥","상하 열파"}};return names[stage-1][boss.pattern];}
     public final List<Eruption> eruptions=new ArrayList<>();
     public static final class Eruption {public final float x,y;public float warning=.95f,life=.75f;public Eruption(float x,float y){this.x=x;this.y=y;}}
+    public enum BuildPath { FIRE("불꽃 강화"), DASH("돌진 강화"), DRAGON("드래곤 강화");public final String title;BuildPath(String title){this.title=title;} }
+    private final int[] buildRanks=new int[3],entryBuildRanks=new int[3];
+    private final int[] dashCharges=new int[4];
+    private final java.util.Random rewardRandom=new java.util.Random();
+    private final Item[] rewardItems=new Item[3];
+    private int rewardStep;
+    public int buildRank(BuildPath path){return buildRanks[path.ordinal()];}
+    public boolean choosingReward(){return hp>0&&(rewardStep==1||rewardStep==2);}
+    public boolean choosingBuildReward(){return choosingReward()&&rewardStep==1;}
+    public Item rewardItem(int index){return index>=0&&index<3?rewardItems[index]:null;}
+    public String buildDescription(BuildPath p){int next=Math.min(3,buildRank(p)+1);switch(p){
+        case FIRE:return "불꽃 공격 첫 명중 시 폭발. 주변에 원래 피해의 "+(15+10*next)+"% 추가 피해. 반경 "+(65+15*next)+".";
+        case DASH:return "돌진 기술을 최대 2회 충전. 지나간 자리에 잔불을 남겨 원래 피해의 "+(15+5*next)+"%를 한 번 줍니다. 무적과 반동 유지.";
+        default:return "드래곤 기술 피해 +"+(10*next)+"%. 첫 명중 시 두 갈래 분열탄, 각 "+(20+10*next)+"%. 재분열 없음.";
+    }}
+    public String activeBuildDescription(Skill move){
+        if(move==null||move.category==Category.STATUS)return "";String result="";int fire=buildRank(BuildPath.FIRE),dash=buildRank(BuildPath.DASH),dragon=buildRank(BuildPath.DRAGON);
+        if(skillElement(move)==Element.FIRE&&fire>0)result+="불꽃 변형: 첫 명중 폭발 "+(15+10*fire)+"%.\n";
+        if(MoveGeometry.dash(move)&&dash>0)result+="돌진 변형: 2회 충전 / 잔불 "+(15+5*dash)+"%.\n";
+        if(skillElement(move)==Element.DRAGON&&dragon>0)result+="드래곤 변형: 피해 +"+(10*dragon)+"% / 분열탄 각 "+(20+10*dragon)+"%.\n";
+        return result.trim();
+    }
+    private void prepareRewardItems(){
+        java.util.Arrays.fill(rewardItems,null);rewardItems[0]=rewardRandom.nextBoolean()?Item.MUSCLE:Item.GLASSES;
+        for(int i=1;i<3;i++){for(int tries=0;tries<100;tries++){Item item=rollItem(rewardRandom.nextInt(DROP_WEIGHT_TOTAL));boolean duplicate=false;for(int j=0;j<i;j++)if(rewardItems[j]==item)duplicate=true;if(!duplicate&&(item.held()||item==Item.TM)){rewardItems[i]=item;break;}}if(rewardItems[i]==null)for(Item item:Item.values()){boolean duplicate=false;for(int j=0;j<i;j++)if(rewardItems[j]==item)duplicate=true;if(!duplicate&&item.held()){rewardItems[i]=item;break;}}}
+    }
+    public String rewardDescription(Item item){switch(item){
+        case MUSCLE:return "기본 공격과 모든 물리 기술 피해 +15%. 같은 도구와 중첩됩니다.";
+        case GLASSES:return "모든 특수 기술 피해 +15%. 같은 도구와 중첩됩니다.";
+        case CHARCOAL:return "모든 불꽃 타입 기술 피해 +20%. 불꽃 빌드에 어울립니다.";
+        case FANG:return "모든 드래곤 타입 기술 피해 +20%. 드래곤 빌드에 어울립니다.";
+        case SCARF:return "기본 공격을 포함한 노말 타입 공격 피해 +20%.";
+        case MULTI:return "명중 후 원래 피해의 50%로 추가 타격합니다. 같은 도구로 피해가 증가합니다.";
+        case WIDE:return "투사체가 가까운 적을 따라갑니다. 중첩하면 유도 범위와 회전이 강화됩니다.";
+        case SCOPE:return "급소에 맞힐 확률을 높입니다. 급소 피해는 1.5배입니다.";
+        case SASH:return "기절할 피해를 받으면 1개를 소모하고 하트 반 칸으로 생존합니다.";
+        case LEFTOVERS:return "12초마다 하트 반 칸 회복. 여러 개를 모으면 회복량이 증가합니다.";
+        case SHELL:return "직접 명중마다 회복 충전 +1. 충전 6마다 하트 반 칸 회복.";
+        case CLAW:return "재사용 회복 속도 +12%. 여러 개를 모으면 더 빨리 공격할 수 있습니다.";
+        case EGG:return "적 처치 경험치 +25%. 같은 도구와 중첩됩니다.";
+        case BELT:return "보스에게 주는 직접 피해 +20%. 보스전에 유리합니다.";
+        case TM:return "기술머신 1개를 보관합니다. 다음 맵에서 T키로 원하는 기술을 선택하세요.";
+        default:return "보유 도구에 추가합니다.";
+    }}
+    public boolean chooseBuildReward(BuildPath path){if(!choosingBuildReward()||path==null||paused)return false;buildRanks[path.ordinal()]=Math.min(3,buildRank(path)+1);resetDashCharges();rewardStep=2;return true;}
+    public boolean chooseItemReward(int index){if(!choosingReward()||rewardStep!=2||paused||index<0||index>=3)return false;Item item=rewardItems[index];if(item==null)return false;rewardStep=3;collectItem(item);transitionTime=.35f;if(stage==3&&isBossRoom()&&!choosingSkill()){cleared=true;stageComplete=false;}return true;}
+    private void completeArea(){stageComplete=true;transitionTime=0;rewardStep=isBossRoom()?1:2;prepareRewardItems();message=mapTitle()+" 완료! 보상을 선택하세요.";}
+    private void resetDashCharges(){for(int i=0;i<4;i++)dashCharges[i]=buildRank(BuildPath.DASH)>0&&skillAt(i)!=null&&MoveGeometry.dash(skillAt(i))?2:0;}
+    public int skillCharges(int slot){return slot>=0&&slot<4&&buildRank(BuildPath.DASH)>0&&skillAt(slot)!=null&&MoveGeometry.dash(skillAt(slot))?dashCharges[slot]:-1;}
+    public boolean skillReady(int slot){return skillUnlocked(slot)&&(skillCharges(slot)>=0?dashCharges[slot]>0:skillCooldowns[slot]<=.05f);}
+    public final List<BuildEffect> buildEffects=new ArrayList<>();
+    private final List<SkillShot> pendingBuildShots=new ArrayList<>();
+    public static final class BuildEffect {public final float x,y,w,h;public float age;public final float life;public final boolean trail;public final int power,dir;public final Skill move;public final java.util.Set<Enemy> hit=new java.util.HashSet<>();BuildEffect(float x,float y,float w,float h,float life,boolean trail,int power,int dir,Skill move){this.x=x;this.y=y;this.w=w;this.h=h;this.life=life;this.trail=trail;this.power=power;this.dir=dir;this.move=move;}}
     public boolean stageComplete;
     public float transitionTime,rockSpawnTimer;
     public final List<RockFall> rockFalls=new ArrayList<>();
@@ -55,6 +107,21 @@ public final class GameWorld {
     public float walkClock,hurtTime,landingTime,hitStop,shake,coyote;
     private float dustClock;
     public final List<Effect> effects=new ArrayList<>();
+    public enum SoundCue { HIT, COUNTER, GUARDED, CRITICAL, IMMUNE, HURT, BOSS_WARNING }
+    public enum CombatKind { NORMAL, WEAKNESS, RESISTED, COUNTER, GUARDED, CRITICAL, IMMUNE, HURT, WARNING }
+    public static final class CombatText {
+        public final float x,y,life=1.05f;public float age;public final String label;public final CombatKind kind;
+        public CombatText(float x,float y,String label,CombatKind kind){this.x=x;this.y=y;this.label=label;this.kind=kind;}
+    }
+    public final List<CombatText> combatTexts=new ArrayList<>();
+    private final java.util.ArrayDeque<SoundCue> soundCues=new java.util.ArrayDeque<>();
+    private void feedback(float x,float y,String label,CombatKind kind,SoundCue cue){
+        if(combatTexts.size()>=32)combatTexts.remove(0);combatTexts.add(new CombatText(x,y,label,kind));
+        if(soundCues.size()>=32)soundCues.removeFirst();soundCues.addLast(cue);
+    }
+    public List<SoundCue> drainSoundCues(){List<SoundCue> result=new ArrayList<>(soundCues);soundCues.clear();return result;}
+    private void bossWarning(Enemy e){feedback(e.x+e.width()/2,e.y+e.height()+150,bossMoveName()+" 준비!",CombatKind.WARNING,SoundCue.BOSS_WARNING);}
+
     public static final class Effect {
         public float x,y,age;public final float life;public final int kind,dir;
         public Effect(float x,float y,int kind,int dir){this.x=x;this.y=y;this.kind=kind;this.dir=dir;life=kind==2?.55f:.32f;}
@@ -88,7 +155,7 @@ public final class GameWorld {
     private final java.util.Random combatRandom=new java.util.Random();
     public String itemNotice="";public float itemNoticeTime;
     public int itemCount(Item item){return inventory[item.ordinal()];}
-    public void setDropSeed(long seed){dropRandom.setSeed(seed);combatRandom.setSeed(seed);}
+    public void setDropSeed(long seed){dropRandom.setSeed(seed);combatRandom.setSeed(seed);rewardRandom.setSeed(seed^0x53A71L);}
     public static final int DROP_WEIGHT_TOTAL=10000,NORMAL_DROP_PERCENT=20,BOSS_DROP_COUNT=3,BOSS_DROP_WEIGHT_TOTAL=3000;
     public static boolean normalDropOccurs(int roll){if(roll<0||roll>=100)throw new IllegalArgumentException("drop roll outside 0..99");return roll<NORMAL_DROP_PERCENT;}
     public static Item rollBossItem(int roll){
@@ -103,7 +170,7 @@ public final class GameWorld {
         String effect;
         if(item==Item.CANDY){int previousHp=hp;level++;candyLevels++;xp=0;offerLevelSkill(level);finishGrowth();hp=previousHp;effect="레벨 상승 / 적 레벨 유지";}
         else if(item==Item.BERRY){hp=Math.min(maxHp,hp+2);effect="하트 1칸 회복";}
-        else if(item==Item.TM){inventory[item.ordinal()]++;effect="T키로 배울 기술 선택";if(!choosingSkill()&&!paused&&hp>0)tmSelecting=true;}
+        else if(item==Item.TM){inventory[item.ordinal()]++;effect="T키로 배울 기술 선택";if(!choosingSkill()&&!stageComplete&&!paused&&hp>0)tmSelecting=true;}
         else {inventory[item.ordinal()]++;effect="x"+itemCount(item)+" / "+itemSummary(item);}
         itemNotice=item.tier+"티어 "+item.title+" / "+effect;itemNoticeTime=4;
         effects.add(new Effect(x+22,y+40,2,1));
@@ -152,18 +219,25 @@ public final class GameWorld {
         if(!enemy.alive())return 0;
         int oldHp=enemy.hp;
         float factor=TypeChart.multiplier(attackType,enemy.primaryType,enemy.secondaryType);enemy.lastEffectiveness=factor;enemy.matchupTime=.9f;
-        if(factor==0){enemy.lastDamage=0;enemy.combatNote="효과 없음";return 0;}
+        if(factor==0){enemy.lastDamage=0;enemy.combatNote="효과 없음";feedback(enemy.x+enemy.width()/2,enemy.y+enemy.height()+145,"효과 없음",CombatKind.IMMUNE,SoundCue.IMMUNE);return 0;}
         if(enemy.boss)power=Math.round(power*(1+.2f*itemCount(Item.BELT)));
         boolean physical=move==null||move.category==Category.PHYSICAL;
         power=Math.max(1,Math.round(power*referenceDefense()/enemy.defense(physical)));
         float natural=move!=null&&MoveEffects.profile(move).crit>0?.125f:0;
         float critical=1-(1-natural)*(float)Math.pow(.9,itemCount(Item.SCOPE));
-        if(critical>0&&combatRandom.nextFloat()<critical)power=Math.round(power*1.5f);
+        boolean isCritical=critical>0&&combatRandom.nextFloat()<critical;
+        if(isCritical)power=Math.round(power*1.5f);
         power=Math.max(1,Math.round(power*factor));
         if(move==Skill.FALSE_SWIPE)power=Math.min(power,enemy.hp-1);
         if(power<=0)return 0;
         if(move!=null)skillVisuals.add(new SkillVisual.Burst(move,enemy.x+enemy.width()/2,enemy.y+enemy.height()/2,dir,true));
-        enemy.lastDamage=power;enemy.combatNote="-"+power+" / "+TypeChart.label(factor);
+        boolean counter=enemy.phase==Phase.RECOVER&&(move==null||!move.ranged()&&!MoveGeometry.dash(move));
+        boolean guarded=move==null&&(enemy.phase==Phase.WINDUP||enemy.phase==Phase.ATTACK);
+        CombatKind kind=isCritical?CombatKind.CRITICAL:guarded?CombatKind.GUARDED:counter?CombatKind.COUNTER:factor>1?CombatKind.WEAKNESS:factor<1?CombatKind.RESISTED:CombatKind.NORMAL;
+        String prefix=(counter?"빈틈 공격! ":"")+(guarded?"평타 방어! ":"")+(isCritical?"급소! ":"");
+        enemy.lastDamage=power;enemy.combatNote=prefix+"-"+power+" / "+TypeChart.label(factor);
+        String label=prefix+"-"+Math.min(power,oldHp)+(factor>1?" 효과 굉장!":factor<1?" 반감":"");
+        feedback(enemy.x+enemy.width()/2,enemy.y+enemy.height()+145+(combatTexts.size()%3)*17,label,kind,isCritical?SoundCue.CRITICAL:guarded?SoundCue.GUARDED:counter?SoundCue.COUNTER:SoundCue.HIT);
         hitEnemy(enemy,power,dir,true);
         if(itemCount(Item.SHELL)>0){drainCharge+=itemCount(Item.SHELL);if(drainCharge>=6){int heal=(int)(drainCharge/6);drainCharge%=6;hp=Math.min(maxHp,hp+heal);}}
         // Echoes store already adjusted damage and must not apply type effectiveness a second time.
@@ -254,6 +328,11 @@ public final class GameWorld {
         public String description(){return MoveEffects.description(this);}
     }
     private final Skill[] equipped=new Skill[4],entrySkills=new Skill[4];
+    private final java.util.EnumSet<Skill> learned=java.util.EnumSet.noneOf(Skill.class);
+    private final float[] recallCooldowns=new float[Skill.values().length];
+    private final int[] recallCharges=new int[Skill.values().length];
+    public boolean recalling;private Skill recallCandidate;
+    private int tmSpentTotal,entryTmSpentTotal;
     private final java.util.ArrayDeque<Skill> learnQueue=new java.util.ArrayDeque<>();
     private Skill tmCandidate,castingSkill;
     public boolean tmSelecting;
@@ -261,8 +340,8 @@ public final class GameWorld {
     public float statTime;
     private CastRecord lastAttack;
     private Dash dash;
-    private static final class CastRecord {boolean hit,finished;}
-    private static final class Dash {Skill move;Element element;int power,dir,maxHpAtStart;float time=.28f,speed=650,recoil;boolean userEffect;CastRecord record;final java.util.Set<Enemy> hit=new java.util.HashSet<>();}
+    private static final class CastRecord {boolean hit,finished,fireTriggered,dragonTriggered;}
+    private static final class Dash {Skill move;Element element;int power,dir,maxHpAtStart;float time=.28f,speed=650,recoil,trailDistance;boolean userEffect;CastRecord record;final java.util.Set<Enemy> hit=new java.util.HashSet<>();}
     public boolean dashing(){return dash!=null;}
     public boolean dashInvulnerable(){return dash!=null||(skillTime>0&&!skillReleased&&castingSkill!=null&&MoveGeometry.dash(castingSkill));}
     public Skill dashSkill(){return dash==null?null:dash.move;}
@@ -297,19 +376,32 @@ public final class GameWorld {
     public Skill skillAt(int slot){return slot>=0&&slot<4?equipped[slot]:null;}
     public Skill castingSkill(){return castingSkill;}
     public boolean knows(Skill skill){for(Skill move:equipped)if(move==skill)return true;return false;}
-    public Skill pendingSkill(){return tmCandidate!=null?tmCandidate:learnQueue.peek();}
-    public boolean choosingSkill(){return hp>0&&!cleared&&(tmSelecting||pendingSkill()!=null);}
-    public java.util.List<Skill> tmOptions(){java.util.List<Skill> list=new ArrayList<>();for(Skill skill:Skill.values())if(skill.tm&&!knows(skill))list.add(skill);return list;}
+    public Skill pendingSkill(){return recallCandidate!=null?recallCandidate:tmCandidate!=null?tmCandidate:learnQueue.peek();}
+    public boolean choosingSkill(){return hp>0&&!cleared&&(recalling||tmSelecting||pendingSkill()!=null);}
+    public java.util.List<Skill> tmOptions(){java.util.List<Skill> list=new ArrayList<>();for(Skill skill:Skill.values())if(skill.tm&&!learned.contains(skill)&&!knows(skill))list.add(skill);return list;}
     public boolean openTm(){if(paused||hp<=0||cleared||stageComplete||choosingSkill()||itemCount(Item.TM)<=0)return false;tmSelecting=true;return true;}
-    public boolean chooseTm(Skill skill){if(hp<=0||!tmSelecting||skill==null||!skill.tm||knows(skill)||itemCount(Item.TM)<=0)return false;tmSelecting=false;tmCandidate=skill;return true;}
+    public boolean chooseTm(Skill skill){if(hp<=0||!tmSelecting||skill==null||!skill.tm||learned.contains(skill)||knows(skill)||itemCount(Item.TM)<=0)return false;tmSelecting=false;tmCandidate=skill;return true;}
+    public boolean learnedBefore(Skill skill){return learned.contains(skill);}
+    public java.util.List<Skill> recallOptions(){java.util.List<Skill> list=new ArrayList<>();for(Skill skill:Skill.values())if(learned.contains(skill))list.add(skill);return list;}
+    public boolean recallingSelection(){return recallCandidate!=null;}
+    public boolean openRecall(){if(hp<=0||cleared||stageComplete||choosingSkill())return false;if(skillTime>0||dash!=null||attackTime>0||hurtTime>0||hitStop>0){message="공격이나 피격 동작이 끝나면 기술 목록을 열 수 있습니다.";messageTime=2;return false;}recalling=true;return true;}
+    public boolean chooseRecall(Skill move){if(!recalling||move==null||!learned.contains(move)||hp<=0)return false;recalling=false;recallCandidate=move;return true;}
+    public float recallCooldown(Skill skill){for(int i=0;i<4;i++)if(equipped[i]==skill)return skillCooldowns[i];return recallCooldowns[skill.ordinal()];}
+    private void rememberSlot(int slot){Skill old=equipped[slot];if(old!=null){recallCooldowns[old.ordinal()]=skillCooldowns[slot];recallCharges[old.ordinal()]=dashCharges[slot];}}
     public boolean learnInto(int slot){
-        Skill move=pendingSkill();if(!choosingSkill()||move==null||slot<0||slot>=4||knows(move))return false;
-        equipped[slot]=move;skillCooldowns[slot]=0;
-        if(tmCandidate!=null){inventory[Item.TM.ordinal()]--;tmCandidate=null;}else learnQueue.remove();
-        message="기술 습득! ["+SLOT_KEYS[slot]+"] "+move.name;messageTime=4;return true;
+        Skill move=pendingSkill();if(!choosingSkill()||move==null||slot<0||slot>=4)return false;
+        if(recallCandidate!=null){
+            int other=-1;for(int i=0;i<4;i++)if(equipped[i]==move)other=i;
+            if(other>=0){Skill old=equipped[slot];float cd=skillCooldowns[slot];int charges=dashCharges[slot];equipped[slot]=move;skillCooldowns[slot]=skillCooldowns[other];dashCharges[slot]=dashCharges[other];equipped[other]=old;skillCooldowns[other]=cd;dashCharges[other]=charges;}
+            else{rememberSlot(slot);equipped[slot]=move;skillCooldowns[slot]=recallCooldowns[move.ordinal()];dashCharges[slot]=buildRank(BuildPath.DASH)>0&&MoveGeometry.dash(move)?recallCharges[move.ordinal()]:0;}
+            recallCandidate=null;message="기술 장착! "+(slot+1)+"번 / "+move.name;messageTime=3;return true;
+        }
+        if(knows(move))return false;rememberSlot(slot);equipped[slot]=move;skillCooldowns[slot]=0;dashCharges[slot]=buildRank(BuildPath.DASH)>0&&MoveGeometry.dash(move)?2:0;learned.add(move);recallCooldowns[move.ordinal()]=0;recallCharges[move.ordinal()]=2;
+        if(tmCandidate!=null){inventory[Item.TM.ordinal()]--;tmSpentTotal++;tmCandidate=null;}else learnQueue.remove();
+        message="기술 습득! "+(slot+1)+"번 / "+move.name;messageTime=4;return true;
     }
-    public void skipLearning(){if(tmSelecting){tmSelecting=false;return;}if(tmCandidate!=null){tmCandidate=null;return;}if(!learnQueue.isEmpty())learnQueue.remove();}
-    private void offerLevelSkill(int reached){for(Skill move:Skill.values())if(move.unlockLevel==reached&&reached>1&&!knows(move)&&!learnQueue.contains(move))learnQueue.add(move);}
+    public void skipLearning(){if(recalling){recalling=false;return;}if(recallCandidate!=null){recallCandidate=null;recalling=true;return;}if(tmSelecting){tmSelecting=false;return;}if(tmCandidate!=null){tmCandidate=null;return;}if(!learnQueue.isEmpty())learnQueue.remove();}
+    private void offerLevelSkill(int reached){for(Skill move:Skill.values())if(move.unlockLevel==reached&&reached>1&&!learned.contains(move)&&!knows(move)&&!learnQueue.contains(move))learnQueue.add(move);}
     public int skillDamage(Skill move){
         if(move==null||move.category==Category.STATUS)return 0;
         int power=move==Skill.WEATHER_BALL&&fireBuff>0?100:move.power==0?40:move.power;
@@ -317,7 +409,7 @@ public final class GameWorld {
         int base=PokemonStats.damage(level,power,move.category==Category.PHYSICAL?values.attack:values.specialAttack,referenceDefense());
         Element element=skillElement(move);
         if(element==Element.FIRE)base=Math.round(base*(1+.2f*itemCount(Item.CHARCOAL))*(fireBuff>0?1.5f:1));
-        if(element==Element.DRAGON)base=Math.round(base*(1+.2f*itemCount(Item.FANG)));
+        if(element==Element.DRAGON)base=Math.round(base*(1+.2f*itemCount(Item.FANG))*(1+.1f*buildRank(BuildPath.DRAGON)));
         if(element==Element.NORMAL)base=Math.round(base*(1+.2f*itemCount(Item.SCARF)));
         base=categoryDamage(base,move.category==Category.PHYSICAL);
         return Math.max(1,base);
@@ -333,7 +425,7 @@ public final class GameWorld {
     public static final float CAST_DURATION=.45f;
     public float castDuration(){return castingSkill==Skill.FOCUS_PUNCH?.9f:CAST_DURATION;}
     public static final class SkillShot {
-        public float x,y,life,vx,vy;public final int type,power;public final Skill move;public final Element element;public boolean userEffect;private CastRecord record;
+        public float x,y,life,vx,vy;public final int type,power;public final Skill move;public final Element element;public boolean userEffect,secondary;private CastRecord record;
         public final java.util.Set<Enemy> hit=new java.util.HashSet<>();
         public SkillShot(float x,float y,int dir,int type,int power){this(x,y,dir,type==0?Skill.EMBER:Skill.DRAGON,power);}
         public SkillShot(float x,float y,int dir,Skill move,int power){this(x,y,dir,move,power,move.element);}
@@ -384,14 +476,14 @@ public final class GameWorld {
         public float dotRemainder;
         public PokemonStats.Species species;
         public PokemonStats.Values stats(){return PokemonStats.at(species,level);}
-        public float defense(boolean physical){PokemonStats.Values d=stats();return (physical?d.defense:d.specialDefense)*(boss?BOSS_DEFENSE_MULTIPLIER:1)*statMultiplier(physical?defenseStage:specialDefenseStage);}
+        public float defense(boolean physical){PokemonStats.Values d=stats();return (physical?d.defense:d.specialDefense)*defenseScale()*statMultiplier(physical?defenseStage:specialDefenseStage);}
         public Element primaryType,secondaryType;
         public int attackStage,defenseStage,specialDefenseStage,speedStage;
         public float statTime,paralysisTime,flinchTime,trapTime,trapTick;
         public float matchupTime,lastEffectiveness=1;public int lastDamage;public String combatNote="";
         public String typeLabel(){return primaryType.title+(secondaryType==null||secondaryType==primaryType?"":" / "+secondaryType.title);}
         public String weaknesses(){StringBuilder result=new StringBuilder();for(Element element:Element.values()){float factor=TypeChart.multiplier(element,primaryType,secondaryType);if(factor>1){if(result.length()>0)result.append(" / ");result.append(element.title);if(factor==4)result.append(" 4배");}}return result.toString();}
-        public boolean boss;public int cycle,bursts,pattern;public float targetX,jumpStartX;public float width(){return boss?82:48;}public float height(){return boss?105:64;}
+        public boolean boss;public int bossStage=1;public int hpScale(){return boss?(bossStage==1?3:bossStage==2?7:10):1;}public int defenseScale(){return boss?Math.max(1,Math.min(3,bossStage)):1;}public int cycle,bursts,pattern;public float targetX,jumpStartX;public float width(){return boss?82:48;}public float height(){return boss?105:64;}
         public Phase phase=Phase.PATROL;
         public Enemy(float x,float y,boolean spitter) { this.x=home=x;this.y=homeY=y;this.spitter=spitter;species=spitter?PokemonStats.Species.EKANS:PokemonStats.Species.RATTATA;primaryType=spitter?Element.POISON:Element.NORMAL; }
         public boolean alive() { return hp>0; }
@@ -404,11 +496,14 @@ public final class GameWorld {
     private void ground(float x,float width) { blocks.add(new Block(x,0,width,FLOOR)); }
     private void bridge(float x,float top,float width) { blocks.add(new Block(x,top-24,width,24,true)); }
     public void restart() {
-        stage=1;mapIndex=1;totalKills=0;level=1;candyLevels=0;xp=evolution=0;maxHp=hp=6;elapsed=0;
+        java.util.Arrays.fill(buildRanks,0);rewardStep=0;stage=1;mapIndex=1;totalKills=0;level=1;candyLevels=0;xp=evolution=0;maxHp=hp=6;elapsed=0;
+        learned.clear();learned.add(Skill.SCRATCH);learned.add(Skill.GROWL);recalling=false;recallCandidate=null;tmSpentTotal=0;
         java.util.Arrays.fill(inventory,0);java.util.Arrays.fill(equipped,null);equipped[0]=Skill.SCRATCH;equipped[1]=Skill.GROWL;learnQueue.clear();tmCandidate=null;tmSelecting=false;
         loadStage();
     }
     private void loadStage() {
+        recalling=false;recallCandidate=null;java.util.Arrays.fill(recallCooldowns,0);java.util.Arrays.fill(recallCharges,2);entryTmSpentTotal=tmSpentTotal;
+        System.arraycopy(buildRanks,0,entryBuildRanks,0,3);rewardStep=0;java.util.Arrays.fill(rewardItems,null);buildEffects.clear();pendingBuildShots.clear();
         dash=null;lastAttack=null;attackStage=specialAttackStage=speedStage=0;statTime=0;
         System.arraycopy(equipped,0,entrySkills,0,4);physicalBuff=speedBuff=fireBuff=helpBuff=specialPenalty=sleepTime=endureTime=0;castingSkill=null;
         System.arraycopy(inventory,0,entryInventory,0,inventory.length);drops.clear();echoes.clear();healClock=drainCharge=dropThroughTime=0;itemNoticeTime=0;
@@ -417,8 +512,8 @@ public final class GameWorld {
         x=checkpoint=100;y=FLOOR;vx=vy=0;facing=1;grounded=true;
         kills=attackSerial=0;attackTime=attackCooldown=0;invulnerable=1;
         paused=cleared=stageComplete=false;transitionTime=0;rockSpawnTimer=3;
-        skillShots.clear();skillVisuals.clear();smokeClouds.clear();rockFalls.clear();java.util.Arrays.fill(skillCooldowns,0);activeSkill=-1;skillTime=0;skillReleased=false;
-        enemies.clear();shots.clear();effects.clear();walkClock=hurtTime=landingTime=hitStop=shake=dustClock=0;coyote=.1f;
+        resetDashCharges();skillShots.clear();skillVisuals.clear();smokeClouds.clear();rockFalls.clear();java.util.Arrays.fill(skillCooldowns,0);activeSkill=-1;skillTime=0;skillReleased=false;
+        enemies.clear();shots.clear();effects.clear();combatTexts.clear();soundCues.clear();walkClock=hurtTime=landingTime=hitStop=shake=dustClock=0;coyote=.1f;
         blocks.clear();spikes.clear();
         MapLayout layout=MapLayout.create(stage,mapIndex);blocks.addAll(layout.blocks);spikes.addAll(layout.spikes);roomCheckpoints=layout.checkpoints;
         if(!isBossRoom()) {
@@ -426,7 +521,7 @@ public final class GameWorld {
             for(MapLayout.Spawn spawn:layout.enemies)spawn(spawn.x,spawn.y,spawn.spitter);
             message=stageName()+" / "+mapTitle()+": 출구까지 이동하세요!";
         }else{
-            boss=new Enemy(920,FLOOR,stage!=1);boss.boss=true;boss.primaryType=stage==1?Element.NORMAL:stage==2?Element.POISON:Element.FIRE;boss.species=stage==1?PokemonStats.Species.RATICATE:stage==2?PokemonStats.Species.ARBOK:PokemonStats.Species.MAGMAR;boss.level=enemyLevel();boss.hp=boss.maxHp=enemyMaxHp(boss);
+            boss=new Enemy(920,FLOOR,stage!=1);boss.boss=true;boss.bossStage=stage;boss.primaryType=stage==1?Element.NORMAL:stage==2?Element.POISON:Element.FIRE;boss.species=stage==1?PokemonStats.Species.RATICATE:stage==2?PokemonStats.Species.ARBOK:PokemonStats.Species.MAGMAR;boss.level=enemyLevel();boss.hp=boss.maxHp=enemyMaxHp(boss);
             boss.reward=stage==1?600:stage==2?1000:1400;enemies.add(boss);
             message="보스의 방 / "+bossName()+": 보스를 쓰러뜨리면 출구가 열립니다.";
         }
@@ -436,13 +531,13 @@ public final class GameWorld {
         Enemy e=new Enemy(x,y,spitter);e.level=enemyLevel();e.maxHp=e.hp=enemyMaxHp(e);e.reward=stage==1?25:stage==2?40:55;enemies.add(e);
     }
     public boolean advanceStage() {
-        if(choosingSkill()||!stageComplete||(stage==3&&isBossRoom())||paused||hp<=0)return false;
+        if(choosingSkill()||choosingReward()||!stageComplete||(stage==3&&isBossRoom())||paused||hp<=0)return false;
         if(mapIndex<5)mapIndex++;else{stage++;mapIndex=1;}hp=maxHp;loadStage();return true;
     }
     public String nextAreaLabel(){return mapIndex<5?stage+"-"+(mapIndex+1)+" / "+MapLayout.title(mapIndex+1):(stage+1)+"-1 / "+(stage==1?"수정 동굴":"불꽃 화산");}
     public String bossName(){return stage==1?"레트라":stage==2?"아보크":"마그마";}
     public boolean bossDefeated(){return !isBossRoom()||(boss!=null&&!boss.alive());}
-    public boolean retryStage(){if(hp>0||cleared)return false;level=entryLevel;candyLevels=entryCandyLevels;xp=entryXp;evolution=entryEvolution;maxHp=entryMaxHp;hp=maxHp;totalKills=entryKills;System.arraycopy(entryInventory,0,inventory,0,inventory.length);System.arraycopy(entrySkills,0,equipped,0,4);learnQueue.clear();tmCandidate=null;tmSelecting=false;loadStage();return true;}
+    public boolean retryStage(){if(hp>0||cleared)return false;System.arraycopy(entryBuildRanks,0,buildRanks,0,3);level=entryLevel;candyLevels=entryCandyLevels;xp=entryXp;evolution=entryEvolution;maxHp=entryMaxHp;hp=maxHp;totalKills=entryKills;System.arraycopy(entryInventory,0,inventory,0,inventory.length);inventory[Item.TM.ordinal()]=Math.max(0,inventory[Item.TM.ordinal()]-(tmSpentTotal-entryTmSpentTotal));System.arraycopy(entrySkills,0,equipped,0,4);learnQueue.clear();tmCandidate=null;tmSelecting=false;loadStage();return true;}
     public int xpRequired() { return 40+(enemyLevel()-1)*10; }
     public int attackDamage() { return categoryDamage(Math.round(PokemonStats.damage(level,35,stats().attack,referenceDefense())*(1+.2f*itemCount(Item.SCARF))),true); }
     public String species() { return evolution==0?"파이리":evolution==1?"리자드":"리자몽"; }
@@ -467,9 +562,11 @@ public final class GameWorld {
     public boolean attacking() { return attackTime>.10f&&attackTime<.20f; }
     public void damage(int halfHearts,float sourceX) {
         if(invulnerable>0||dashInvulnerable()||hp<=0||cleared||stageComplete||choosingSkill()) return;
+        int previousHp=hp;
         if(halfHearts>=hp&&endureTime>0)halfHearts=hp-1;
         boolean saved=halfHearts>=hp&&itemCount(Item.SASH)>0;
         if(saved){inventory[Item.SASH.ordinal()]--;hp=1;itemNotice="기합의띠 발동! 하트 반 칸으로 생존";itemNoticeTime=4;}else hp=Math.max(0,hp-halfHearts);invulnerable=1.1f;attackTime=0;skillTime=0;activeSkill=-1;hurtTime=.32f;hitStop=.055f;shake=.2f;
+        if(hp<previousHp)feedback(x+22,y+PLAYER_H+100,"피격! 하트 -"+((previousHp-hp)/2f),CombatKind.HURT,SoundCue.HURT);
         effects.add(new Effect(x+22,y+38,1,x<sourceX?-1:1));
         vx=x<sourceX?-170:170;vy=250;grounded=false;
         message="피격! 하트 -"+(halfHearts/2f)+"칸";messageTime=1.8f;
@@ -484,8 +581,9 @@ public final class GameWorld {
     public void step(float dt,float move,boolean jump,boolean attack) {
         if(paused||hp<=0||cleared||choosingSkill()) return;
         dt=Math.min(Math.max(dt,0),1f/30f);if(dt==0)return;
+        for(Iterator<CombatText> it=combatTexts.iterator();it.hasNext();){CombatText t=it.next();t.age+=dt;if(t.age>=t.life)it.remove();}
         for(Iterator<SkillVisual.Burst> it=skillVisuals.iterator();it.hasNext();){SkillVisual.Burst b=it.next();b.age+=dt;if(b.age>=b.life)it.remove();}
-        if(stageComplete){transitionTime=Math.max(0,transitionTime-dt);if(transitionTime<=0)advanceStage();return;}
+        if(stageComplete){if(choosingReward())return;if(stage==3&&isBossRoom()){cleared=true;stageComplete=false;return;}transitionTime=Math.max(0,transitionTime-dt);if(transitionTime<=0)advanceStage();return;}
         for(Iterator<Effect> it=effects.iterator();it.hasNext();){Effect fx=it.next();fx.age+=dt;if(fx.age>=fx.life)it.remove();}
         shake=Math.max(0,shake-dt);
         if(hitStop>0){hitStop=Math.max(0,hitStop-dt);return;}
@@ -565,14 +663,14 @@ public final class GameWorld {
             }
         }
         updateSkillShots(dt);
+        updateBuildEffects(dt);
         updateRockFalls(dt);
         updateEruptions(dt);
         updateBossHazards(dt);
         if(choosingSkill())return;
         if(x>=exitX()&&hp>0&&bossDefeated()) {
             finishDash();if(hp<=0)return;
-            if(stage<3||!isBossRoom()){stageComplete=true;transitionTime=1.4f;message=mapTitle()+" 완료!";}
-            else {cleared=true;message="모험 완료! 세 보스를 모두 쓰러뜨렸습니다!";}
+            completeArea();
         }
     }
     private void updateEnemy(Enemy e,float dt) {
@@ -643,13 +741,16 @@ public final class GameWorld {
         if(skill==null||paused||hp<=0||cleared||stageComplete||choosingSkill()||hitStop>0||hurtTime>0||skillTime>0||dash!=null||sleepTime>0&&skill!=Skill.SLEEP_TALK)return false;
         if(skill==Skill.SLEEP_TALK&&sleepTime<=0){message="잠꼬대는 잠든 동안 사용할 수 있습니다.";messageTime=2;return false;}
         if(skill==Skill.SUBSTITUTE&&hp<=2){message="대타출동에 필요한 하트가 부족합니다.";messageTime=2;return false;}
-        if(skillCooldowns[index]>0)return false;
-        attackTime=0;skillCooldowns[index]=skill.cooldown*cooldownScale();activeSkill=index;castingSkill=skill;
+        boolean charged=skillCharges(index)>=0;
+        if(charged?dashCharges[index]<=0:skillCooldowns[index]>0)return false;
+        attackTime=0;if(charged){dashCharges[index]--;if(skillCooldowns[index]<=0)skillCooldowns[index]=skill.cooldown*cooldownScale();}else skillCooldowns[index]=skill.cooldown*cooldownScale();activeSkill=index;castingSkill=skill;
         skillTime=castDuration();skillReleased=false;skillDirection=facing;attackCooldown=Math.max(attackCooldown,castDuration());
         message=skill.name+"!";messageTime=1.4f;return true;
     }
     private void updateSkills(float dt) {
-        for(int i=0;i<4;i++)skillCooldowns[i]=Math.max(0,skillCooldowns[i]-dt);
+        for(Skill move:Skill.values())if(!knows(move)){int n=move.ordinal();float old=recallCooldowns[n];recallCooldowns[n]=Math.max(0,old-dt);if(buildRank(BuildPath.DASH)>0&&MoveGeometry.dash(move)&&old>0&&recallCooldowns[n]<=0){recallCharges[n]=Math.min(2,recallCharges[n]+1);if(recallCharges[n]<2)recallCooldowns[n]=move.cooldown*cooldownScale();}}
+        for(int i=0;i<4;i++){float old=skillCooldowns[i];skillCooldowns[i]=Math.max(0,old-dt);if(skillCharges(i)>=0&&old>0&&skillCooldowns[i]<=0){dashCharges[i]=Math.min(2,dashCharges[i]+1);if(dashCharges[i]<2)skillCooldowns[i]=skillAt(i).cooldown*cooldownScale();}}
+        for(int i=0;i<4;i++)rememberSlot(i);
         for(Iterator<Smoke> it=smokeClouds.iterator();it.hasNext();){Smoke cloud=it.next();cloud.life-=dt;if(cloud.life<=0)it.remove();}
         if(skillTime>0){skillTime=Math.max(0,skillTime-dt);if(skillTime<=castDuration()*.6f&&!skillReleased){skillReleased=true;releaseSkill(castingSkill);}if(skillTime<=0){activeSkill=-1;castingSkill=null;}}
     }
@@ -695,6 +796,7 @@ public final class GameWorld {
             for(Enemy e:enemies)if(e.alive()&&(!e.boss||bossActive)&&MoveGeometry.hits(move,x,y,skillDirection,e)){
                 int hit=e.phase==Phase.RECOVER?Math.round(power*1.7f):power;
                 playerHit(e,hit,skillDirection,move,element);
+                triggerBuildHit(e,move,element,power,skillDirection,record);
                 if(TypeChart.multiplier(element,e.primaryType,e.secondaryType)>0){record.hit=true;userEffect=applySkillStatus(e,move,userEffect);}
             }
             record.finished=true;
@@ -720,10 +822,12 @@ public final class GameWorld {
         if(dash==null)return;Dash current=dash;
         for(Enemy e:enemies)if(e.alive()&&(!e.boss||bossActive)&&!current.hit.contains(e)&&overlap(Math.min(oldX,x)-16,y+4,Math.abs(x-oldX)+PLAYER_W+32,PLAYER_H,e.x,e.y,e.width(),e.height())){
             current.hit.add(e);int damage=playerHit(e,current.power,current.dir,current.move,current.element);
+            triggerBuildHit(e,current.move,current.element,current.power,current.dir,current.record);
             if(TypeChart.multiplier(current.element,e.primaryType,e.secondaryType)>0){current.record.hit=true;current.userEffect=applySkillStatus(e,current.move,current.userEffect);}
             float rate=current.move==Skill.FLARE_BLITZ?1f/3:current.move==Skill.TAKE_DOWN?.25f:0;
             current.recoil+=damage/(float)e.maxHp*current.maxHpAtStart*rate;
         }
+        if(buildRank(BuildPath.DASH)>0){current.trailDistance+=Math.abs(x-oldX);if(current.trailDistance>=60){current.trailDistance-=60;int rank=buildRank(BuildPath.DASH);buildEffects.add(new BuildEffect(x-8,y-2,58,24,1.2f+.2f*rank,true,Math.max(1,Math.round(current.power*(.15f+.05f*rank))),current.dir,current.move));}}
         current.time-=dt;if(current.time<=0||vx==0)finishDash();
     }
     private void finishDash(){
@@ -746,13 +850,27 @@ public final class GameWorld {
             boolean remove=shot.life<=0;
             for(Block b:blocks)if(!b.oneWay&&overlap(shot.x-12,shot.y-10,24,20,b.x,b.y,b.w,b.h))remove=true;
             if(!remove)for(Enemy e:enemies)if(e.alive()&&(!e.boss||bossActive)&&!shot.hit.contains(e)&&overlap(Math.min(old,shot.x)-SkillVisual.radius(shot.move),Math.min(oldY,shot.y)-SkillVisual.radius(shot.move),Math.abs(shot.x-old)+2*SkillVisual.radius(shot.move),Math.abs(shot.y-oldY)+2*SkillVisual.radius(shot.move),e.x,e.y,e.width(),e.height())) {
-                shot.hit.add(e);playerHit(e,shot.power,shot.vx>0?1:-1,shot.move,shot.element);
-                if(TypeChart.multiplier(shot.element,e.primaryType,e.secondaryType)>0){if(shot.record!=null)shot.record.hit=true;shot.userEffect=applySkillStatus(e,shot.move,shot.userEffect);}
-                if(!shot.move.piercing()){remove=true;if(!MoveGeometry.areaProjectile(shot.move))break;}
+                shot.hit.add(e);int dir=shot.vx>0?1:-1;
+                if(shot.secondary)secondaryHit(e,shot.power,dir,shot.move,shot.element);else{playerHit(e,shot.power,dir,shot.move,shot.element);triggerBuildHit(e,shot.move,shot.element,shot.power,dir,shot.record);}
+                if(!shot.secondary&&TypeChart.multiplier(shot.element,e.primaryType,e.secondaryType)>0){if(shot.record!=null)shot.record.hit=true;shot.userEffect=applySkillStatus(e,shot.move,shot.userEffect);}
+                if(shot.secondary||!shot.move.piercing()){remove=true;if(!MoveGeometry.areaProjectile(shot.move))break;}
             }
             if(remove){if(shot.record!=null)shot.record.finished=true;it.remove();}
         }
+        skillShots.addAll(pendingBuildShots);pendingBuildShots.clear();
     }
+    private void secondaryHit(Enemy e,int raw,int dir,Skill source,Element element){
+        if(!e.alive()||e.boss&&!bossActive)return;float factor=TypeChart.multiplier(element,e.primaryType,e.secondaryType);if(factor==0)return;
+        int damage=Math.max(1,Math.round(raw*referenceDefense()/e.defense(source.category==Category.PHYSICAL)*(e.boss?1+.2f*itemCount(Item.BELT):1)*factor));int actual=Math.min(damage,e.hp);hitEnemy(e,damage,dir,true);
+        feedback(e.x+e.width()/2,e.y+e.height()+125,"변형 -"+actual,CombatKind.WEAKNESS,SoundCue.HIT);
+    }
+    private void triggerBuildHit(Enemy target,Skill move,Element element,int power,int dir,CastRecord record){
+        if(record==null||TypeChart.multiplier(element,target.primaryType,target.secondaryType)==0)return;
+        int fire=buildRank(BuildPath.FIRE),dragon=buildRank(BuildPath.DRAGON);float cx=target.x+target.width()/2,cy=target.y+target.height()/2;
+        if(element==Element.FIRE&&fire>0&&!record.fireTriggered){record.fireTriggered=true;float r=65+15*fire;buildEffects.add(new BuildEffect(cx-r,cy-r,r*2,r*2,.45f,false,0,dir,move));for(Enemy e:enemies)if(e.alive()&&overlap(cx-r,cy-r,r*2,r*2,e.x,e.y,e.width(),e.height()))secondaryHit(e,Math.max(1,Math.round(power*(.15f+.1f*fire))),dir,move,Element.FIRE);}
+        if(element==Element.DRAGON&&dragon>0&&!record.dragonTriggered){record.dragonTriggered=true;for(int sign:new int[]{-1,1}){SkillShot child=new SkillShot(cx+dir*(target.width()/2+8),target.y+target.height()*.75f,dir,move,Math.max(1,Math.round(power*(.2f+.1f*dragon))),Element.DRAGON);child.secondary=true;child.hit.add(target);child.vx=dir*420;child.vy=sign*145;child.life=.45f;pendingBuildShots.add(child);}}
+    }
+    private void updateBuildEffects(float dt){for(Iterator<BuildEffect> it=buildEffects.iterator();it.hasNext();){BuildEffect fx=it.next();fx.age+=dt;if(fx.age>=fx.life){it.remove();continue;}if(fx.trail)for(Enemy e:enemies)if(e.alive()&&!fx.hit.contains(e)&&overlap(fx.x,fx.y,fx.w,fx.h,e.x,e.y,e.width(),e.height())){fx.hit.add(e);secondaryHit(e,fx.power,fx.dir,fx.move,Element.FIRE);}}}
     private void hitEnemy(Enemy e,int power,int direction,boolean impact) {
         if(!e.alive())return;
         e.hp=Math.max(0,e.hp-power);
@@ -798,7 +916,7 @@ public final class GameWorld {
         switch(e.phase) {
         case PATROL:
             e.vx=0;
-            if(e.timer<=0){e.pattern=e.cycle%3;e.dir=x<e.x?-1:1;e.targetX=Math.max(85,Math.min(1110,x));e.jumpStartX=e.x;e.phase=Phase.WINDUP;e.timer=(stage==1?.8f:.95f)-(enraged?.15f:0);e.bursts=0;}
+            if(e.timer<=0){e.pattern=e.cycle%3;e.dir=x<e.x?-1:1;e.targetX=Math.max(85,Math.min(1110,x));e.jumpStartX=e.x;e.phase=Phase.WINDUP;e.timer=(stage==1?.8f:.95f)-(enraged?.15f:0);e.bursts=0;bossWarning(e);}
             break;
         case WINDUP:
             e.vx=0;
@@ -816,7 +934,7 @@ public final class GameWorld {
             else if(stage==2&&e.pattern==2){e.vx=approach(e.vx,e.dir*470,3000*dt);e.x=Math.max(85,Math.min(1200-e.width(),e.x+e.vx*dt));if(e.timer<=0)bossHazards.add(new BossHazard(BossHazardType.POISON_POOL,e.x,FLOOR,110,24,.45f,2.2f,0,enemyDamage(e,true,50)));}
             else if(stage==3&&e.pattern==2&&e.timer<.4f&&e.bursts==1){bossWave(e,BossHazardType.HEAT_WAVE,FLOOR+135,e.dir,.35f);e.bursts=2;}
             if(e.timer<=0){
-                if(stage==1&&e.pattern==0&&e.bursts==0){e.bursts=1;e.phase=Phase.WINDUP;e.timer=.55f;e.dir=x<e.x?-1:1;}
+                if(stage==1&&e.pattern==0&&e.bursts==0){e.bursts=1;e.phase=Phase.WINDUP;e.timer=.55f;e.dir=x<e.x?-1:1;bossWarning(e);}
                 else{e.y=FLOOR;e.phase=Phase.RECOVER;e.timer=enraged?1.1f:1.5f;e.vx=0;e.cycle++;}
             }
             break;
