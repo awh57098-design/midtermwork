@@ -1,4 +1,4 @@
-# midtermwork
+# 포켓몬 불꽃의 여정
 
 게임 및 혼합현실 중간 프로젝트: 포켓몬을 소재로 한 2D 액션 플랫포머 프로토타입입니다.
 
@@ -312,3 +312,9 @@ K키로 이번 모험에서 실제로 배운 기술 목록을 열 수 있습니�
 F2로 키 설정을 열고 숫자 1~4 또는 해당 슬롯을 클릭한 뒤 새 키를 누릅니다. 중복 키를 지정하면 기존 슬롯과 서로 교환합니다. 이동·점프·평타·메뉴·숫자 키는 예약되어 있습니다. QWER처럼 R을 기술로 사용할 수 있으며 이 경우 재시작은 Ctrl+R로 바뀝니다. 기본 배치는 X/C/A/S이고 설정 화면의 기본값 복원으로 되돌릴 수 있습니다.
 
 키 설정은 libGDX Preferences(midtermwork.controls)에 자동 저장해 재실행 및 새 모험에도 유지합니다. HUD, 기술 설명, 기술 장착 화면은 변경한 키를 표시합니다. 실제 재장착 클릭·키 입력·저장 확인 도구: tools/RecallBindingsScreenCheck.java.
+
+## Windows 현장용 배포본
+
+배포 ZIP 전체를 압축 해제하고 `포켓몬_불꽃의_여정_Windows/포켓몬_불꽃의_여정.exe`를 실행합니다. Java 런타임과 자산을 포함하므로 Android Studio, 별도 Java 설치, 인터넷 연결 없이 실행합니다. `app`과 `runtime` 폴더를 실행 파일 옆에 함께 유지해야 합니다. Windows 10/11 64비트와 OpenGL 지원 그래픽 드라이버를 대상으로 합니다. 한국어 조작 안내는 `먼저읽기.txt`, 오류 로그는 `%LOCALAPPDATA%/midtermwork/logs`에 있습니다.
+
+배포본 재생성은 PowerShell에서 `./tools/package-windows.ps1`로 실행합니다. 기본 런타임 경로가 다르면 `-RuntimeHome 'JDK 또는 JRE 경로'`를 지정합니다. 이 스크립트는 자동 검증과 Windows JAR 빌드 후 런타임·라이선스를 복사하고 Windows 기본 .NET Framework C# 컴파일러로 실행기를 만들어 `dist/windows-날짜시간`에 ZIP을 출력합니다. 실행기는 시스템 Java 설정 대신 동봉된 런타임을 명시적으로 사용합니다. 배포 파일은 Git에 포함하지 않습니다.
